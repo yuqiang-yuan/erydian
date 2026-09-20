@@ -4,10 +4,24 @@ use gpui_kit::component::menu::{DropdownMenu, PopupMenuItem};
 use gpui_kit::*;
 use gpui_kit::component::*;
 
+use crate::actions::NewSchemaAction;
+use crate::dialect::DialectKind;
+use crate::model::SchemaDocument;
 use crate::settings::AppSettings;
+use crate::view::{NewSchemaView, WelcomeView};
+
+enum Scene {
+    Welcome,
+    NewSchema,
+    Editor,
+}
 
 pub struct MainView {
     focus_handle: FocusHandle,
+    schema: Option<SchemaDocument>,
+    scene: Scene,
+    welcome_view: Entity<WelcomeView>,
+    new_schema_view: Entity<NewSchemaView>,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -39,8 +53,18 @@ impl MainView {
 
         Self {
             focus_handle,
+            schema: None,
+            scene: Scene::Welcome,
+            welcome_view: cx.new(|_| WelcomeView {}),
+            new_schema_view: cx.new(|cx| NewSchemaView::new(DialectKind::MySql, window, cx)),
             _subscriptions: subscriptions,
         }
+    }
+
+    fn on_new_schema_action(&mut self, _: &NewSchemaAction, _: &mut Window, cx: &mut Context<Self>) {
+        println!("new scheme action received");
+        self.scene = Scene::NewSchema;
+        cx.notify();
     }
 }
 
@@ -52,6 +76,7 @@ impl Render for MainView {
         div()
             .id("main-view")
             .track_focus(&self.focus_handle)
+            .on_action(cx.listener(Self::on_new_schema_action))
             .size_full()
             .v_flex()
             .child(
@@ -66,7 +91,11 @@ impl Render for MainView {
                     )
             )
             .child(
-                div().flex_1().child("Main Content")
+                match self.scene {
+                    Scene::Welcome => div().size_full().child(self.welcome_view.clone()),
+                    Scene::NewSchema => div().size_full().child(self.new_schema_view.clone()),
+                    Scene::Editor => div(),
+                }
             )
             .children(dialog_layer)
             .children(notification_layer)

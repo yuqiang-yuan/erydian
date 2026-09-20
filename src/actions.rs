@@ -1,1 +1,1 @@
-gpui_kit::actions!(erydian, []);
+gpui_kit::actions!(erydian, [NewSchemaAction]);
