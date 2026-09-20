@@ -5,15 +5,19 @@ mod postgresql;
 
 pub use mysql::MySqlDialect;
 pub use postgresql::PostgreSqlDialect;
+use serde::{Deserialize, Serialize};
 
 pub trait Dialect {
     fn name() -> &'static str;
     fn database_attributes() -> Vec<AttrSpec>;
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DialectKind {
+    #[serde(rename = "mysql")]
     MySql,
+
+    #[serde(rename = "postgresql")]
     PostgreSql,
 }
 

@@ -12,7 +12,7 @@ use gpui_kit::{
     prelude::FluentBuilder,
 };
 
-use crate::{dialect::DialectKind, model::AttrState};
+use crate::{dialect::DialectKind, view::AttrState};
 
 pub struct NewSchemaView {
     dialect: DialectKind,
@@ -29,7 +29,7 @@ impl NewSchemaView {
             attr_states: dialect
                 .database_attributes()
                 .iter()
-                .map(|a| a.kind.state(window, cx))
+                .map(|a| AttrState::from_kind(&a.kind, window, cx))
                 .collect::<Vec<_>>(),
         }
     }
@@ -39,7 +39,7 @@ impl NewSchemaView {
             .dialect
             .database_attributes()
             .iter()
-            .map(|a| a.kind.state(window, cx))
+            .map(|a| AttrState::from_kind(&a.kind, window, cx))
             .collect::<Vec<_>>()
     }
 }
@@ -145,7 +145,7 @@ impl Render for NewSchemaView {
                                             ))
                                             .checked(*b)
                                             .on_click(cx.listener(move |this, v: &bool, _, cx| {
-                                                this.attr_states[i] = AttrState::Bool(!*v);
+                                                this.attr_states[i] = AttrState::Bool(*v);
                                                 cx.notify();
                                             }))
                                             .into_any_element(),

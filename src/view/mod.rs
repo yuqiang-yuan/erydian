@@ -1,7 +1,47 @@
 mod main_view;
-mod welcome_view;
 mod new_schema_view;
+mod welcome_view;
 
+use gpui_kit::{
+    App, AppContext, Entity, Window,
+    base::input::InputState,
+    component::select::{SearchableVec, SelectState},
+};
 pub use main_view::MainView;
-pub use welcome_view::WelcomeView;
 pub use new_schema_view::NewSchemaView;
+pub use welcome_view::WelcomeView;
+
+use crate::model::{AttrKind, AttrValue};
+
+/// To store dynamic components' state
+pub enum AttrState {
+    Text(Entity<InputState>),
+    Select(Entity<SelectState<SearchableVec<String>>>),
+    Bool(bool),
+}
+
+impl AttrState {
+    pub fn value(&self, cx: &App) -> AttrValue {
+        match self {
+            AttrState::Text(state) => AttrValue::Text(state.read(cx).value().to_string()),
+            AttrState::Select(state) => {
+                AttrValue::Text(state.read(cx).selected_value().cloned().unwrap_or_default())
+            }
+            AttrState::Bool(v) => AttrValue::Bool(*v),
+        }
+    }
+
+    pub fn from_kind(kind: &AttrKind, window: &mut Window, cx: &mut App) -> AttrState {
+        match kind {
+            AttrKind::Text { default } => AttrState::Text(cx.new(|cx| {
+                InputState::new(window, cx).default_value(default.clone().unwrap_or(String::new()))
+            })),
+            AttrKind::Select { options } => {
+                let items = SearchableVec::new(options.clone());
+                let state = cx.new(|cx| SelectState::new(items, None, window, cx).searchable(true));
+                AttrState::Select(state)
+            }
+            AttrKind::Bool => AttrState::Bool(false),
+        }
+    }
+}
