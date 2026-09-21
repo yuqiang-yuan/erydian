@@ -1,5 +1,5 @@
 use gpui_kit::{
-    BorderStyle, Bounds, Context, Corners, Edges, Entity, Font, InteractiveElement, IntoElement, PaintQuad, ParentElement, Pixels, Point, Render, Styled, TextRun, Window, canvas, component::ActiveTheme, div, hsla, point, px, size,
+    BorderStyle, Bounds, Context, Corners, Edges, Entity, Font, InteractiveElement, IntoElement, PaintQuad, ParentElement, Pixels, Point, Render, Styled, TextAlign, TextRun, Window, canvas, component::ActiveTheme, div, hsla, point, px, size,
 };
 
 use crate::model::SchemaDocument;
@@ -48,7 +48,21 @@ impl Render for DiagramView {
                         let _ = view.update(cx, |this, _| this.canvas_origin = bounds.origin);
                         let origin = bounds.origin;
 
-                        for (i, table) in schema.read(cx).tables.iter().enumerate() {
+                        let font_size = cx.theme().font_size;
+                        let font = Font {
+                            family: cx.theme().mono_font_family.clone(),
+                            ..Default::default()
+                        };
+                        let bg_color = cx.theme().background;
+
+                        let tables = schema
+                                .read(cx)
+                                .tables
+                                .iter()
+                                .map(|t| t.clone())
+                                .collect::<Vec<_>>();
+
+                        for (i, table) in tables.iter().enumerate() {
                             let top_left = point(
                                 origin.x + trans_point.x + px(10.0 * scale) + px(i as f32 * 100.0),
                                 origin.y + trans_point.y + px(10.0 * scale),
@@ -56,14 +70,10 @@ impl Render for DiagramView {
 
                             let runs = vec![TextRun {
                                 len: table.name.len(),
-                                font: Font {
-                                    family: cx.theme().font_family.clone(),
-                                    ..Default::default()
-                                },
+                                font: font.clone(),
                                 ..Default::default()
                             }];
 
-                            let font_size = cx.theme().font_size;
                             let shaped = window.text_system().shape_line(
                                 table.name.clone().into(),
                                 font_size,
@@ -90,6 +100,8 @@ impl Render for DiagramView {
                                 border_color: hsla(0., 0., 0.2, 1.),
                                 border_style: BorderStyle::default(),
                             });
+
+                            let _ = shaped.paint(top_left, font_size, TextAlign::Left, None, window, cx);
                         }
                     },
                 )
