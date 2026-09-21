@@ -53,7 +53,8 @@ impl Render for DiagramView {
                             family: cx.theme().mono_font_family.clone(),
                             ..Default::default()
                         };
-                        let bg_color = cx.theme().background;
+                        let text_color = cx.theme().foreground;
+                        let bg_color = cx.theme().secondary;
 
                         let tables = schema
                                 .read(cx)
@@ -71,6 +72,7 @@ impl Render for DiagramView {
                             let runs = vec![TextRun {
                                 len: table.name.len(),
                                 font: font.clone(),
+                                color: text_color,
                                 ..Default::default()
                             }];
 
@@ -90,7 +92,7 @@ impl Render for DiagramView {
                                     size: sz,
                                 },
                                 corner_radii: Corners::default(),
-                                background: cx.theme().foreground.into(),
+                                background: bg_color.into(),
                                 border_widths: Edges {
                                     left: px(2.),
                                     top: px(2.),
