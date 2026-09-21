@@ -3,7 +3,7 @@ mod schema;
 pub use schema::SchemaDocument;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AttrKind {
     Text { default: Option<String> },
     Select { options: Vec<String> },
@@ -17,6 +17,7 @@ pub enum AttrValue {
     Bool(bool),
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AttrSpec {
     pub key: &'static str,
     pub label: &'static str,

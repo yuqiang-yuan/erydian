@@ -12,8 +12,9 @@ pub trait Dialect {
     fn database_attributes() -> Vec<AttrSpec>;
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DialectKind {
+    #[default]
     #[serde(rename = "mysql")]
     MySql,
 

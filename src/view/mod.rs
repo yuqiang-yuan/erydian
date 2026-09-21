@@ -1,6 +1,7 @@
 mod main_view;
 mod new_schema_view;
 mod welcome_view;
+mod editor_view;
 
 use gpui_kit::{
     App, AppContext, Entity, Window,
@@ -10,6 +11,7 @@ use gpui_kit::{
 pub use main_view::MainView;
 pub use new_schema_view::NewSchemaView;
 pub use welcome_view::WelcomeView;
+pub use editor_view::EditorView;
 
 use crate::model::{AttrKind, AttrValue};
 

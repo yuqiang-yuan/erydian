@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{dialect::DialectKind, model::AttrValue};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct SchemaDocument {
     pub dialect: DialectKind,
     pub name: String,

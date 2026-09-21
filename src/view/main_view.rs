@@ -1,14 +1,19 @@
+use std::collections::BTreeMap;
 
+use gpui_fps::fps_monitor;
 use gpui_kit::component::button::{Button, ButtonVariants};
 use gpui_kit::component::menu::{DropdownMenu, PopupMenuItem};
-use gpui_kit::*;
+use gpui_kit::component::notification::NotificationType;
+use gpui_kit::component::status_bar::StatusBar;
 use gpui_kit::component::*;
+use gpui_kit::prelude::FluentBuilder;
+use gpui_kit::*;
 
-use crate::actions::NewSchemaAction;
+use crate::actions::{NewSchemaAction, SchemaCreatedAction};
 use crate::dialect::DialectKind;
 use crate::model::SchemaDocument;
 use crate::settings::AppSettings;
-use crate::view::{NewSchemaView, WelcomeView};
+use crate::view::{EditorView, NewSchemaView, WelcomeView};
 
 enum Scene {
     Welcome,
@@ -22,7 +27,9 @@ pub struct MainView {
     scene: Scene,
     welcome_view: Entity<WelcomeView>,
     new_schema_view: Entity<NewSchemaView>,
+    editor_view: Entity<EditorView>,
     _subscriptions: Vec<Subscription>,
+    show_fps: bool,
 }
 
 impl MainView {
@@ -54,17 +61,46 @@ impl MainView {
         Self {
             focus_handle,
             schema: None,
-            scene: Scene::Welcome,
+            scene: Scene::Editor,
             welcome_view: cx.new(|_| WelcomeView {}),
             new_schema_view: cx.new(|cx| NewSchemaView::new(DialectKind::MySql, window, cx)),
+            editor_view: cx.new(|cx| {
+                EditorView::new(
+                    SchemaDocument::new(DialectKind::MySql, "MyTest".into(), BTreeMap::new()),
+                    window,
+                    cx,
+                )
+            }),
             _subscriptions: subscriptions,
+            show_fps: false,
         }
     }
 
-    fn on_new_schema_action(&mut self, _: &NewSchemaAction, _: &mut Window, cx: &mut Context<Self>) {
+    fn on_new_schema_action(
+        &mut self,
+        _: &NewSchemaAction,
+        _: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         println!("new scheme action received");
         self.scene = Scene::NewSchema;
         cx.notify();
+    }
+
+    fn on_schema_created_action(
+        &mut self,
+        action: &SchemaCreatedAction,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if let Ok(schema) = serde_json::from_str::<SchemaDocument>(&action.schema_json) {
+            self.editor_view = cx.new(|cx| EditorView::new(schema, window, cx));
+            self.scene = Scene::Editor;
+
+            cx.notify();
+        } else {
+            window.push_notification((NotificationType::Error, "Parse schema data failed"), cx);
+        }
     }
 }
 
@@ -75,28 +111,31 @@ impl Render for MainView {
 
         div()
             .id("main-view")
+            .relative()
             .track_focus(&self.focus_handle)
             .on_action(cx.listener(Self::on_new_schema_action))
+            .on_action(cx.listener(Self::on_schema_created_action))
             .size_full()
             .v_flex()
             .child(
-                TitleBar::new()
-                    .child(
-                        div()
-                            .size_full()
-                            .h_flex()
-                            .child(div().flex_grow_1())
-                            .child(font_size_button())
-                            .child(theme_button(cx))
-                    )
+                TitleBar::new().child(
+                    div()
+                        .size_full()
+                        .h_flex()
+                        .child(div().flex_grow_1())
+                        .child(font_size_button())
+                        .child(theme_button(cx)),
+                ),
             )
-            .child(
-                match self.scene {
-                    Scene::Welcome => div().size_full().child(self.welcome_view.clone()),
-                    Scene::NewSchema => div().size_full().child(self.new_schema_view.clone()),
-                    Scene::Editor => div(),
-                }
-            )
+            .child(match self.scene {
+                Scene::Welcome => div().size_full().child(self.welcome_view.clone()),
+                Scene::NewSchema => div().size_full().child(self.new_schema_view.clone()),
+                Scene::Editor => div().size_full().child(self.editor_view.clone()),
+            })
+            .when(matches!(self.scene, Scene::Editor), |this| {
+                this.child(StatusBar::new().left("Ready"))
+            })
+            .when(self.show_fps, |this| this.child(fps_monitor(window, cx)))
             .children(dialog_layer)
             .children(notification_layer)
     }
@@ -107,8 +146,16 @@ fn theme_button(cx: &mut App) -> impl IntoElement {
     Button::new("theme-button")
         .ghost()
         .rounded_none()
-        .icon(if cx.theme().is_dark() { IconName::Moon } else { IconName::Sun })
-        .tooltip(if cx.theme().is_dark() { "Swith to light" } else { "Switch to dark" })
+        .icon(if cx.theme().is_dark() {
+            IconName::Moon
+        } else {
+            IconName::Sun
+        })
+        .tooltip(if cx.theme().is_dark() {
+            "Swith to light"
+        } else {
+            "Switch to dark"
+        })
         .tooltip_placement(Placement::Bottom)
         .on_click(|_, window, cx| {
             let target_mode = if cx.theme().is_dark() {
@@ -140,7 +187,7 @@ fn font_size_button() -> impl IntoElement {
                         Theme::global_mut(cx).font_size = px(14.0);
                         Theme::sync_base(cx);
                         cx.refresh_windows();
-                    })
+                    }),
             )
             .item(
                 PopupMenuItem::new("Regular")
@@ -149,7 +196,7 @@ fn font_size_button() -> impl IntoElement {
                         Theme::global_mut(cx).font_size = px(16.0);
                         Theme::sync_base(cx);
                         cx.refresh_windows();
-                    })
+                    }),
             )
             .item(
                 PopupMenuItem::new("Large")
@@ -158,7 +205,7 @@ fn font_size_button() -> impl IntoElement {
                         Theme::global_mut(cx).font_size = px(18.0);
                         Theme::sync_base(cx);
                         cx.refresh_windows();
-                    })
+                    }),
             )
         })
 }

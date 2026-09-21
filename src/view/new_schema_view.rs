@@ -1,10 +1,12 @@
+use std::collections::BTreeMap;
+
 use gpui_kit::{
     AppContext, Context, Entity, IntoElement, ParentElement, Render, Styled, Window, base::{Selectable, StyledExt, input::InputState}, component::{
-        ActiveTheme, Icon, button::{Button, ButtonGroup, ButtonVariants}, checkbox::Checkbox, input::Input, select::{Select, SelectState},
+        ActiveTheme, Icon, WindowExt, button::{Button, ButtonGroup, ButtonVariants}, checkbox::Checkbox, input::Input, notification::NotificationType, select::Select,
     }, div, prelude::FluentBuilder,
 };
 
-use crate::{dialect::DialectKind, view::AttrState};
+use crate::{actions::SchemaCreatedAction, dialect::DialectKind, model::SchemaDocument, view::AttrState};
 
 pub struct NewSchemaView {
     dialect: DialectKind,
@@ -64,7 +66,7 @@ impl Render for NewSchemaView {
                                 .icon(Icon::default().path("icons/postgresql-logo.svg"))
                                 .label("PostgreSQL")
                         )
-                        .on_click(cx.listener(|this, selected_indexes: &Vec<usize>, _, cx| {
+                        .on_click(cx.listener(|this, selected_indexes: &Vec<usize>, window, cx| {
                             if selected_indexes.is_empty() {
                                 return;
                             }
@@ -80,6 +82,9 @@ impl Render for NewSchemaView {
                             }
 
                             this.dialect = target_kind;
+
+                            this.prepare_attr_states(window, cx);
+
                             cx.notify();
                         }))
                 )
@@ -159,6 +164,29 @@ impl Render for NewSchemaView {
                         Button::new("new-schema-confirmed-button")
                             .primary()
                             .label("Create")
+                            .on_click(cx.listener(|this, _, window, cx| {
+                                if this.name_state.read(cx).value().is_empty() {
+                                    window.push_notification((NotificationType::Error, "Name is required"), cx);
+                                    return;
+                                }
+
+                                let db_attrs = this.dialect
+                                    .database_attributes()
+                                    .iter()
+                                    .zip(&this.attr_states)
+                                    .map(|(a, s)| {
+                                        (a.key.to_string(), s.value(cx))
+                                    })
+                                    .collect::<BTreeMap<_, _>>();
+
+                                let doc = SchemaDocument::new(this.dialect, this.name_state.read(cx).value().to_string(), db_attrs);
+                                if let Ok(s) = serde_json::to_string(&doc) {
+                                    window.dispatch_action(Box::new(SchemaCreatedAction {schema_json: s}), cx);
+                                } else {
+                                    window.push_notification((NotificationType::Error, "Handle new schema failed"), cx);
+                                    return;
+                                }
+                            }))
                     )
                     .child(
                         Button::new("new-schema-cancel-button")
