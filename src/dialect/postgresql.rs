@@ -19,4 +19,8 @@ impl Dialect for PostgreSqlDialect {
             }
         ]
     }
+
+    fn table_attributes() -> Vec<AttrSpec> {
+        vec![]
+    }
 }

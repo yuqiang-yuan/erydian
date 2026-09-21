@@ -1,21 +1,36 @@
 use std::rc::Rc;
 
-use crate::{dialect::DialectKind, model::SchemaDocument, settings::AppSettings};
+use crate::{
+    dialect::DialectKind, model::SchemaDocument, settings::AppSettings,
+    view::diagram_view::DiagramView,
+};
 use gpui_kit::{
-    AppContext, Context, Entity, IntoElement, ParentElement, Render, Styled, Window,
+    AppContext, Context, Element, Entity, InteractiveElement, IntoElement, ParentElement, Render,
+    StatefulInteractiveElement, Styled, Window,
+    WindowBackgroundAppearance::Transparent,
     base::{StyledExt, h_resizable, resizable_panel, v_resizable},
     component::{ActiveTheme, Icon, scroll::ScrollableElement},
-    div, px,
+    div,
+    prelude::FluentBuilder,
+    px, relative,
 };
 
 pub struct EditorView {
     schema: Entity<SchemaDocument>,
+    selected_id: Option<String>,
+    diagram_view: Entity<DiagramView>,
 }
 
 impl EditorView {
-    pub fn new(schema: SchemaDocument, window: &mut Window, cx: &mut Context<Self>) -> Self {
+    pub fn new(
+        schema: Entity<SchemaDocument>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
         Self {
-            schema: cx.new(|_| schema),
+            schema: schema.clone(),
+            selected_id: None,
+            diagram_view: cx.new(|cx| DiagramView::new(schema, window, cx)),
         }
     }
 
@@ -63,12 +78,43 @@ impl EditorView {
                         div()
                             .text_color(cx.theme().muted_foreground)
                             .text_sm()
+                            .p_1()
+                            .px_2()
                             .child("TABLES"),
                     )
+                    .children(self.schema.read(cx).tables.iter().map(|t| {
+                        let id_clone = t.id.clone();
+                        let is_selected = self.selected_id.as_ref() == Some(&t.id);
+                        div()
+                            .id(t.id.clone())
+                            .when(is_selected, |this| {
+                                this.border_color(cx.theme().list_active_border)
+                                    .bg(cx.theme().list_active)
+                            })
+                            .when(!is_selected, |this| {
+                                this.hover(|style| {
+                                    style
+                                        .bg(cx.theme().list_active)
+                                        .border_color(cx.theme().transparent)
+                                })
+                            })
+                            .border_1()
+                            .rounded_sm()
+                            .p_1()
+                            .px_2()
+                            .line_height(relative(1.3))
+                            .child(t.name.clone())
+                            .on_click(cx.listener(move |this, _, _, cx| {
+                                this.selected_id = Some(id_clone.clone());
+                                cx.notify();
+                            }))
+                    }))
                     .child(
                         div()
                             .text_color(cx.theme().muted_foreground)
                             .text_sm()
+                            .p_1()
+                            .px_2()
                             .child("RELATIONSHIPS"),
                     ),
             )
@@ -114,11 +160,22 @@ impl Render for EditorView {
                     v_resizable("editor-v-resizable")
                         .on_resize(|state, _, cx| {
                             let v = state.read(cx);
-                            cx.global_mut::<AppSettings>().editor_v_pos = Some(v.sizes()[1].as_f32());
+                            cx.global_mut::<AppSettings>().editor_v_pos =
+                                Some(v.sizes()[1].as_f32());
                             cx.global::<AppSettings>().save();
                         })
                         .with_handle_appearance(Rc::new(|_, _, _| Some(div().into_any_element())))
-                        .child(resizable_panel().p_1().child(self.er_canvas(window, cx)))
+                        .child(
+                            resizable_panel().p_1().child(
+                                div()
+                                    .size_full()
+                                    .v_flex()
+                                    .rounded_md()
+                                    .border_1()
+                                    .border_color(cx.theme().border)
+                                    .child(self.diagram_view.clone()),
+                            ),
+                        )
                         .child(
                             resizable_panel()
                                 .size(px(cx.global::<AppSettings>().editor_v_pos.unwrap_or(200.0)))

@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 pub trait Dialect {
     fn name() -> &'static str;
     fn database_attributes() -> Vec<AttrSpec>;
+    fn table_attributes() -> Vec<AttrSpec>;
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -42,6 +43,13 @@ impl DialectKind {
         match self {
             Self::MySql => MySqlDialect::database_attributes(),
             Self::PostgreSql => PostgreSqlDialect::database_attributes(),
+        }
+    }
+
+    pub fn table_attributes(&self) -> Vec<AttrSpec> {
+        match self {
+            Self::MySql => MySqlDialect::table_attributes(),
+            Self::PostgreSql => PostgreSqlDialect::table_attributes(),
         }
     }
 }

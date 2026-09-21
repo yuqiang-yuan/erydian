@@ -2,6 +2,7 @@ mod main_view;
 mod new_schema_view;
 mod welcome_view;
 mod editor_view;
+mod diagram_view;
 
 use gpui_kit::{
     App, AppContext, Entity, Window,

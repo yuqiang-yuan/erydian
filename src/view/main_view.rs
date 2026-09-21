@@ -11,7 +11,7 @@ use gpui_kit::*;
 
 use crate::actions::{AboutAction, NewRelationshipAction, NewSchemaAction, NewTableAction, OpenFileAction, QuitAction, SaveFileAction, SchemaCreatedAction};
 use crate::dialect::DialectKind;
-use crate::model::SchemaDocument;
+use crate::model::{SchemaDocument, TableSpec};
 use crate::settings::AppSettings;
 use crate::view::{EditorView, NewSchemaView, WelcomeView};
 
@@ -25,13 +25,34 @@ enum Scene {
 pub struct MainView {
     focus_handle: FocusHandle,
     menubar: Entity<AppMenuBar>,
-    // schema: Option<SchemaDocument>,
+    schema: Option<Entity<SchemaDocument>>,
     scene: Scene,
     welcome_view: Entity<WelcomeView>,
     new_schema_view: Entity<NewSchemaView>,
     editor_view: Entity<EditorView>,
     _subscriptions: Vec<Subscription>,
     show_fps: bool,
+}
+
+fn gen_test_schema(cx: &mut Context<MainView>) -> Entity<SchemaDocument> {
+    cx.new(|_| {
+        let mut doc = SchemaDocument::new(
+            DialectKind::MySql,
+            "MyTest And a very long name",
+            BTreeMap::new(),
+        );
+
+        doc.tables.extend(
+            vec![
+                TableSpec::new("users"),
+                TableSpec::new("posts"),
+                TableSpec::new("comments"),
+                TableSpec::new("orders"),
+            ]
+        );
+
+        doc
+    })
 }
 
 impl MainView {
@@ -71,20 +92,17 @@ impl MainView {
             settings.window_maximized = Some(is_maximum);
         }));
 
+        let test_schema = gen_test_schema(cx);
         Self {
             focus_handle,
             menubar: AppMenuBar::new(cx),
-            // schema: None,
+            schema: Some(test_schema.clone()),
             scene: Scene::Editor,
             welcome_view: cx.new(|_| WelcomeView {}),
             new_schema_view: cx.new(|cx| NewSchemaView::new(DialectKind::MySql, window, cx)),
             editor_view: cx.new(|cx| {
                 EditorView::new(
-                    SchemaDocument::new(
-                        DialectKind::MySql,
-                        "MyTest And a very long name".into(),
-                        BTreeMap::new(),
-                    ),
+                    test_schema.clone(),
                     window,
                     cx,
                 )
@@ -112,12 +130,30 @@ impl MainView {
         cx: &mut Context<Self>,
     ) {
         if let Ok(schema) = serde_json::from_str::<SchemaDocument>(&action.schema_json) {
-            self.editor_view = cx.new(|cx| EditorView::new(schema, window, cx));
+            let ent_schema = cx.new(|_| schema);
+            let ent_schema_clone = ent_schema.clone();
+
+            self.schema = Some(ent_schema);
+            self.editor_view = cx.new(|cx| EditorView::new(ent_schema_clone, window, cx));
             self.scene = Scene::Editor;
 
             cx.notify();
         } else {
             window.push_notification((NotificationType::Error, "Parse schema data failed"), cx);
+        }
+    }
+
+    fn on_table_added_action(
+        &mut self,
+        action: &NewTableAction,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        if let Some(doc) = &self.schema {
+            doc.update(cx, |this, cx| {
+                this.tables.push(TableSpec::new("table"));
+                cx.notify();
+            })
         }
     }
 }
@@ -133,6 +169,7 @@ impl Render for MainView {
             .track_focus(&self.focus_handle)
             .on_action(cx.listener(Self::on_new_schema_action))
             .on_action(cx.listener(Self::on_schema_created_action))
+            .on_action(cx.listener(Self::on_table_added_action))
             .size_full()
             .v_flex()
             .child(

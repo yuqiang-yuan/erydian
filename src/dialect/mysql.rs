@@ -283,4 +283,7 @@ impl Dialect for MySqlDialect {
         ]
     }
 
+    fn table_attributes() -> Vec<AttrSpec> {
+        vec![]
+    }
 }
