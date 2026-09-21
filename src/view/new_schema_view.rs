@@ -52,7 +52,7 @@ impl Render for NewSchemaView {
                             Button::new("mysql-databse-button")
                                 .when(self.dialect == DialectKind::MySql, |this| this.success())
                                 .selected(self.dialect == DialectKind::MySql)
-                                .icon(Icon::default().path("mysql-logo.svg"))
+                                .icon(Icon::default().path("icons/mysql-logo.svg"))
                                 .label("MySQL")
                         )
                         .child(
@@ -61,7 +61,7 @@ impl Render for NewSchemaView {
                                     this.success()
                                 })
                                 .selected(self.dialect == DialectKind::PostgreSql)
-                                .icon(Icon::default().path("postgresql-logo.svg"))
+                                .icon(Icon::default().path("icons/postgresql-logo.svg"))
                                 .label("PostgreSQL")
                         )
                         .on_click(cx.listener(|this, selected_indexes: &Vec<usize>, _, cx| {

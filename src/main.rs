@@ -2,9 +2,7 @@ use erydian::{assets::AppAssets, globals::APP_ID, settings::AppSettings, view::M
 #[cfg(target_os = "linux")]
 use gpui_kit::WindowDecorations;
 use gpui_kit::{
-    AppContext, WindowBounds, WindowKind, WindowOptions,
-    component::{Root, Theme, ThemeMode, TitleBar},
-    px, size,
+    AppContext, WindowBounds, WindowKind, WindowOptions, component::{Root, Theme, ThemeMode, ThemeRegistry, TitleBar}, px, size,
 };
 
 fn main() {
@@ -14,6 +12,33 @@ fn main() {
         cx.set_app_identity(APP_ID, "Erydian");
 
         let settings = AppSettings::load();
+
+        let ayu_json = include_str!("../assets/themes/ayu.json");
+
+        {
+            ThemeRegistry::global_mut(cx)
+                .load_themes_from_str(ayu_json)
+                .ok();
+        }
+
+        // Get both configs out of the registry
+        let ayu_light = ThemeRegistry::global(cx)
+            .themes()
+            .get("Ayu Light")
+            .cloned();
+        let ayu_dark = ThemeRegistry::global(cx)
+            .themes()
+            .get("Ayu Dark")
+            .cloned();
+
+        {
+            if let Some(light) = ayu_light {
+                Theme::global_mut(cx).light_theme = light;
+            }
+            if let Some(dark) = ayu_dark {
+                Theme::global_mut(cx).dark_theme = dark;
+            }
+        }
 
         if let Some(true) = settings.is_dark {
             Theme::change(ThemeMode::Dark, None, cx);
