@@ -23,9 +23,9 @@ pub enum AttrState {
 impl AttrState {
     pub fn value(&self, cx: &App) -> AttrValue {
         match self {
-            AttrState::Text(state) => AttrValue::Text(state.read(cx).value().to_string()),
+            AttrState::Text(state) => AttrValue::Text(Some(state.read(cx).value().to_string())),
             AttrState::Select(state) => {
-                AttrValue::Text(state.read(cx).selected_value().cloned().unwrap_or_default())
+                AttrValue::Text(state.read(cx).selected_value().cloned())
             }
             AttrState::Bool(v) => AttrValue::Bool(*v),
         }

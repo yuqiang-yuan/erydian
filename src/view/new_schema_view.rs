@@ -1,15 +1,7 @@
 use gpui_kit::{
-    AppContext, Context, Entity, IntoElement, ParentElement, Render, Styled, Window,
-    base::{StyledExt, input::InputState},
-    component::{
-        ActiveTheme, Icon,
-        button::{Button, ButtonVariants},
-        checkbox::Checkbox,
-        input::Input,
-        select::Select,
-    },
-    div,
-    prelude::FluentBuilder,
+    AppContext, Context, Entity, IntoElement, ParentElement, Render, Styled, Window, base::{Selectable, StyledExt, input::InputState}, component::{
+        ActiveTheme, Icon, button::{Button, ButtonGroup, ButtonVariants}, checkbox::Checkbox, input::Input, select::{Select, SelectState},
+    }, div, prelude::FluentBuilder,
 };
 
 use crate::{dialect::DialectKind, view::AttrState};
@@ -53,45 +45,44 @@ impl Render for NewSchemaView {
             .gap_4()
             .child(div().text_xl().text_center().child("New Schema"))
             .child(
-                div()
-                    .w_full()
-                    .h_flex()
-                    .gap_4()
-                    .justify_center()
-                    .items_center()
-                    .child(
-                        Button::new("new-mysql-button")
-                            .when(self.dialect == DialectKind::MySql, |this| this.success())
-                            .icon(Icon::default().path("mysql-logo.svg"))
-                            .label("MySQL")
-                            .on_click(cx.listener(|this, _, window, cx| {
-                                if this.dialect == DialectKind::MySql {
-                                    return;
-                                }
+                div().h_flex().justify_center().child(
+                    ButtonGroup::new("database-button-group")
+                        .multiple(false)
+                        .child(
+                            Button::new("mysql-databse-button")
+                                .when(self.dialect == DialectKind::MySql, |this| this.success())
+                                .selected(self.dialect == DialectKind::MySql)
+                                .icon(Icon::default().path("mysql-logo.svg"))
+                                .label("MySQL")
+                        )
+                        .child(
+                            Button::new("postgresql-database-button")
+                                .when(self.dialect == DialectKind::PostgreSql, |this| {
+                                    this.success()
+                                })
+                                .selected(self.dialect == DialectKind::PostgreSql)
+                                .icon(Icon::default().path("postgresql-logo.svg"))
+                                .label("PostgreSQL")
+                        )
+                        .on_click(cx.listener(|this, selected_indexes: &Vec<usize>, _, cx| {
+                            if selected_indexes.is_empty() {
+                                return;
+                            }
 
-                                this.dialect = DialectKind::MySql;
-                                this.prepare_attr_states(window, cx);
+                            let target_kind = match selected_indexes[0] {
+                                0 => DialectKind::MySql,
+                                1 => DialectKind::PostgreSql,
+                                _ => return,
+                            };
 
-                                cx.notify();
-                            })),
-                    )
-                    .child(
-                        Button::new("new-postgresql-button")
-                            .when(self.dialect == DialectKind::PostgreSql, |this| {
-                                this.success()
-                            })
-                            .icon(Icon::default().path("postgresql-logo.svg"))
-                            .label("PostgreSQL")
-                            .on_click(cx.listener(|this, _, window, cx| {
-                                if this.dialect == DialectKind::PostgreSql {
-                                    return;
-                                }
-                                this.dialect = DialectKind::PostgreSql;
-                                this.prepare_attr_states(window, cx);
+                            if target_kind == this.dialect {
+                                return;
+                            }
 
-                                cx.notify();
-                            })),
-                    ),
+                            this.dialect = target_kind;
+                            cx.notify();
+                        }))
+                )
             )
             .child(
                 div()
@@ -157,6 +148,22 @@ impl Render for NewSchemaView {
                             })
                             .collect::<Vec<_>>(),
                     ),
+            )
+            .child(
+                div()
+                    .mt_4()
+                    .h_flex()
+                    .justify_center()
+                    .gap_4()
+                    .child(
+                        Button::new("new-schema-confirmed-button")
+                            .primary()
+                            .label("Create")
+                    )
+                    .child(
+                        Button::new("new-schema-cancel-button")
+                            .label("Cancel")
+                    )
             )
     }
 }

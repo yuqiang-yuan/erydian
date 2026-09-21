@@ -13,7 +13,7 @@ pub enum AttrKind {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum AttrValue {
-    Text(String),
+    Text(Option<String>),
     Bool(bool),
 }
 
