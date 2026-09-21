@@ -3,7 +3,7 @@ use std::rc::Rc;
 use crate::{dialect::DialectKind, model::SchemaDocument, settings::AppSettings};
 use gpui_kit::{
     AppContext, Context, Entity, IntoElement, ParentElement, Render, Styled, Window,
-    base::{ResizableState, StyledExt, h_resizable, resizable_panel, v_resizable},
+    base::{StyledExt, h_resizable, resizable_panel, v_resizable},
     component::{ActiveTheme, Icon, scroll::ScrollableElement},
     div, px,
 };

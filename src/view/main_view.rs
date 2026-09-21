@@ -2,19 +2,20 @@ use std::collections::BTreeMap;
 
 use gpui_fps::fps_monitor;
 use gpui_kit::component::button::{Button, ButtonVariants};
-use gpui_kit::component::menu::{DropdownMenu, PopupMenuItem};
+use gpui_kit::component::menu::{AppMenuBar, DropdownMenu, PopupMenuItem};
 use gpui_kit::component::notification::NotificationType;
 use gpui_kit::component::status_bar::StatusBar;
 use gpui_kit::component::*;
 use gpui_kit::prelude::FluentBuilder;
 use gpui_kit::*;
 
-use crate::actions::{NewSchemaAction, SchemaCreatedAction};
+use crate::actions::{AboutAction, NewRelationshipAction, NewSchemaAction, NewTableAction, OpenFileAction, QuitAction, SaveFileAction, SchemaCreatedAction};
 use crate::dialect::DialectKind;
 use crate::model::SchemaDocument;
 use crate::settings::AppSettings;
 use crate::view::{EditorView, NewSchemaView, WelcomeView};
 
+#[derive(Debug, PartialEq, Eq)]
 enum Scene {
     Welcome,
     NewSchema,
@@ -23,7 +24,8 @@ enum Scene {
 
 pub struct MainView {
     focus_handle: FocusHandle,
-    schema: Option<SchemaDocument>,
+    menubar: Entity<AppMenuBar>,
+    // schema: Option<SchemaDocument>,
     scene: Scene,
     welcome_view: Entity<WelcomeView>,
     new_schema_view: Entity<NewSchemaView>,
@@ -36,6 +38,17 @@ impl MainView {
     pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
         let focus_handle = cx.focus_handle();
         focus_handle.focus(window, cx);
+
+        #[cfg(target_os = "macos")]
+        {
+            cx.set_menus(build_menus());
+        }
+
+        #[cfg(not(target_os = "macos"))]
+        {
+            let menus = build_menus().into_iter().map(|menu| menu.owned()).collect();
+            GlobalState::global_mut(cx).set_app_menus(menus);
+        }
 
         let mut subscriptions = vec![];
 
@@ -60,13 +73,18 @@ impl MainView {
 
         Self {
             focus_handle,
-            schema: None,
+            menubar: AppMenuBar::new(cx),
+            // schema: None,
             scene: Scene::Editor,
             welcome_view: cx.new(|_| WelcomeView {}),
             new_schema_view: cx.new(|cx| NewSchemaView::new(DialectKind::MySql, window, cx)),
             editor_view: cx.new(|cx| {
                 EditorView::new(
-                    SchemaDocument::new(DialectKind::MySql, "MyTest And a very long name".into(), BTreeMap::new()),
+                    SchemaDocument::new(
+                        DialectKind::MySql,
+                        "MyTest And a very long name".into(),
+                        BTreeMap::new(),
+                    ),
                     window,
                     cx,
                 )
@@ -122,6 +140,7 @@ impl Render for MainView {
                     div()
                         .size_full()
                         .h_flex()
+                        .child(self.menubar.clone())
                         .child(div().flex_grow_1())
                         .child(font_size_button())
                         .child(theme_button(cx)),
@@ -139,6 +158,50 @@ impl Render for MainView {
             .children(dialog_layer)
             .children(notification_layer)
     }
+}
+
+/// Build the application menu
+fn build_menus() -> Vec<Menu> {
+    vec![
+        #[cfg(target_os = "macos")]
+        {
+            Menu {
+                name: "Erydian".into(),
+                items: vec![
+                    MenuItem::action("About", AboutAction),
+                    MenuItem::separator(),
+                    MenuItem::action("Quit", QuitAction),
+                ],
+                disabled: false,
+            }
+        },
+        Menu {
+            name: "File".into(),
+            items: vec![
+                MenuItem::action("New", NewSchemaAction),
+                MenuItem::action("Open", OpenFileAction),
+                MenuItem::action("Save", SaveFileAction),
+                MenuItem::separator(),
+                MenuItem::action("Quit", QuitAction),
+            ],
+            disabled: false,
+        },
+        Menu {
+            name: "Edit".into(),
+            items: vec![
+                MenuItem::separator(),
+                MenuItem::action("New Table", NewTableAction),
+                MenuItem::action("New Relationship", NewRelationshipAction),
+            ],
+            disabled: false,
+        },
+        Menu {
+            name: "Help".into(),
+
+            items: vec![MenuItem::action("About", AboutAction)],
+            disabled: false,
+        },
+    ]
 }
 
 /// Add a button to switch theme (dark/light)
