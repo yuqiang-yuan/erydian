@@ -66,7 +66,7 @@ impl MainView {
             new_schema_view: cx.new(|cx| NewSchemaView::new(DialectKind::MySql, window, cx)),
             editor_view: cx.new(|cx| {
                 EditorView::new(
-                    SchemaDocument::new(DialectKind::MySql, "MyTest".into(), BTreeMap::new()),
+                    SchemaDocument::new(DialectKind::MySql, "MyTest And a very long name".into(), BTreeMap::new()),
                     window,
                     cx,
                 )
@@ -130,7 +130,7 @@ impl Render for MainView {
             .child(match self.scene {
                 Scene::Welcome => div().size_full().child(self.welcome_view.clone()),
                 Scene::NewSchema => div().size_full().child(self.new_schema_view.clone()),
-                Scene::Editor => div().size_full().child(self.editor_view.clone()),
+                Scene::Editor => div().size_full().p_1().child(self.editor_view.clone()),
             })
             .when(matches!(self.scene, Scene::Editor), |this| {
                 this.child(StatusBar::new().left("Ready"))

@@ -13,29 +13,30 @@ fn main() {
 
         let settings = AppSettings::load();
 
-        let ayu_json = include_str!("../assets/themes/ayu.json");
-
+        let my_theme = include_str!("../assets/themes/hybrid.json");
+        let my_theme_light_name = "Hybrid Light";
+        let my_theme_dark_name = "Hybrid Dark";
         {
             ThemeRegistry::global_mut(cx)
-                .load_themes_from_str(ayu_json)
+                .load_themes_from_str(my_theme)
                 .ok();
         }
 
         // Get both configs out of the registry
-        let ayu_light = ThemeRegistry::global(cx)
+        let my_theme_light = ThemeRegistry::global(cx)
             .themes()
-            .get("Ayu Light")
+            .get(my_theme_light_name)
             .cloned();
-        let ayu_dark = ThemeRegistry::global(cx)
+        let my_theme_dark = ThemeRegistry::global(cx)
             .themes()
-            .get("Ayu Dark")
+            .get(my_theme_dark_name)
             .cloned();
 
         {
-            if let Some(light) = ayu_light {
+            if let Some(light) = my_theme_light {
                 Theme::global_mut(cx).light_theme = light;
             }
-            if let Some(dark) = ayu_dark {
+            if let Some(dark) = my_theme_dark {
                 Theme::global_mut(cx).dark_theme = dark;
             }
         }

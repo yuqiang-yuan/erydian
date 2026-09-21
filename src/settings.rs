@@ -20,6 +20,8 @@ pub struct AppSettings {
     pub window_height: Option<f32>,
     pub window_maximized: Option<bool>,
     pub font_size: Option<f32>,
+    pub editor_h_pos: Option<f32>,
+    pub editor_v_pos: Option<f32>,
 }
 
 impl Global for AppSettings {}
@@ -66,6 +68,8 @@ impl Default for AppSettings {
             window_width: Some(1200.0),
             window_height: Some(800.0),
             font_size: Some(16.0),
+            editor_h_pos: Some(200.0),
+            editor_v_pos: Some(200.0),
         }
     }
 }
