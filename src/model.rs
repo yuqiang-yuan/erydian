@@ -111,14 +111,13 @@ impl Rect {
 
 /// data related to the graph
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GraphData {
+pub struct TableGraph {
     pub is_dirty: bool,
     pub selected: bool,
     pub rect: Rect,
-    pub points: Vec<Point>
 }
 
-impl GraphData {}
+impl TableGraph {}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TableSpec {
@@ -126,7 +125,7 @@ pub struct TableSpec {
     pub name: String,
     pub attrs: BTreeMap<String, AttrValue>,
     pub columns: Vec<ColumnSpec>,
-    pub graph: Option<GraphData>,
+    pub graph: Option<TableGraph>,
 }
 
 impl TableSpec {

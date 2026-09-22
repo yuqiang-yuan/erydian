@@ -1,22 +1,25 @@
 use std::rc::Rc;
 
 use crate::{
-    dialect::DialectKind, model::SchemaDocument, settings::AppSettings,
-    view::diagram_view::DiagramView,
+    dialect::DialectKind,
+    model::SchemaDocument,
+    settings::AppSettings,
+    view::{SelectedItem, detail_view::TableDetailView, diagram_view::DiagramView},
 };
 use gpui_kit::{
     AppContext, Context, Entity, InteractiveElement, IntoElement, ParentElement, Render,
-    StatefulInteractiveElement, Styled, Window,
+    StatefulInteractiveElement, Styled, Subscription, Window,
     base::{StyledExt, h_resizable, resizable_panel, v_resizable},
     component::{ActiveTheme, Icon, scroll::ScrollableElement},
-    div,
-    px, relative,
+    div, px, relative,
 };
 
 pub struct EditorView {
     schema: Entity<SchemaDocument>,
-    selected_id: Entity<Option<String>>,
+    selected_item: Entity<Option<SelectedItem>>,
     diagram_view: Entity<DiagramView>,
+    table_detail_view: Option<Entity<TableDetailView>>,
+    _subscriptions: Vec<Subscription>,
 }
 
 impl EditorView {
@@ -25,10 +28,30 @@ impl EditorView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
+        let sid = cx.new(|_| None);
+        let sid_sub = cx.observe_in(&sid, window, |this, ent, window, cx| match ent.read(cx) {
+            Some(SelectedItem::Table(_)) if this.table_detail_view.is_none() => {
+                this.table_detail_view = Some(cx.new(|cx| {
+                    TableDetailView::new(
+                        this.schema.clone(),
+                        this.selected_item.clone(),
+                        window,
+                        cx,
+                    )
+                }));
+
+                cx.notify();
+            }
+            Some(SelectedItem::Relationship(_)) => {}
+            _ => {}
+        });
+
         Self {
             schema: schema.clone(),
-            selected_id: cx.new(|_| None),
+            selected_item: sid.clone(),
             diagram_view: cx.new(|cx| DiagramView::new(schema, window, cx)),
+            table_detail_view: None,
+            _subscriptions: vec![sid_sub],
         }
     }
 
@@ -104,7 +127,10 @@ impl EditorView {
                             .line_height(relative(1.3))
                             .child(t.name.clone())
                             .on_click(cx.listener(move |this, _, _, cx| {
-                                this.selected_id.update(cx, |id, _| *id = Some(id_clone.clone()));
+                                this.selected_item.update(cx, |id, cx| {
+                                    *id = Some(SelectedItem::Table(id_clone.clone()));
+                                    cx.notify();
+                                });
                                 cx.notify();
                             }))
                     }))
@@ -126,6 +152,7 @@ impl EditorView {
             .rounded_md()
             .border_1()
             .border_color(cx.theme().border)
+            .children(self.table_detail_view.clone())
     }
 }
 

@@ -18,6 +18,7 @@ pub use editor_view::EditorView;
 use crate::model::{AttrKind, AttrValue};
 
 /// To store dynamic components' state
+#[derive(Debug, Clone)]
 pub enum AttrState {
     Text(Entity<InputState>),
     Select(Entity<SelectState<SearchableVec<String>>>),
@@ -48,4 +49,11 @@ impl AttrState {
             AttrKind::Bool => AttrState::Bool(false),
         }
     }
+}
+
+/// What is selected
+#[derive(Debug, Clone)]
+pub enum SelectedItem {
+    Table(String),
+    Relationship(String),
 }

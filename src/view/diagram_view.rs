@@ -5,7 +5,7 @@ use gpui_kit::{
     component::ActiveTheme, div, hsla, point, px, size,
 };
 
-use crate::model::{GraphData, SchemaDocument};
+use crate::model::{TableGraph, SchemaDocument};
 
 /// What (if anything) a left-button drag is currently operating on.
 #[derive(Clone, PartialEq)]
@@ -105,7 +105,7 @@ impl DiagramView {
 
         match &self.drag {
             DragMode::Table(table_id) => {
-                self.schema.update(cx, |this, _| {
+                self.schema.update(cx, |this, cx| {
                     if let Some(table) = this.tables.iter_mut().find(|t| &t.id == table_id)
                         && let Some(g) = &mut table.graph
                     {
@@ -113,6 +113,8 @@ impl DiagramView {
                         g.rect.top += dy / px(self.scale);
                         g.is_dirty = true;
                     }
+
+                    cx.notify();
                 });
             }
             DragMode::Canvas => {
@@ -267,7 +269,7 @@ impl Render for DiagramView {
                                     * (font_size.as_f32() + padding_y * 2.0)
                                     + padding_y * 2.0;
 
-                                table.graph = Some(GraphData {
+                                table.graph = Some(TableGraph {
                                     is_dirty: false,
                                     selected: false,
                                     rect: crate::model::Rect::new(
@@ -276,7 +278,6 @@ impl Render for DiagramView {
                                         table_width,
                                         height,
                                     ),
-                                    points: vec![],
                                 });
                             }
                         });
