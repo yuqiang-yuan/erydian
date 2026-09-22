@@ -1,13 +1,39 @@
 use gpui_kit::{
-    BorderStyle, Bounds, Context, Corners, Edges, Entity, Font, InteractiveElement, IntoElement, PaintQuad, ParentElement, Pixels, Point, Render, Styled, TextAlign, TextRun, Window, canvas, component::ActiveTheme, div, hsla, point, px, size,
+    BorderStyle, Bounds, Context, Corners, Edges, Entity, Font, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, PaintQuad, ParentElement, Pixels, Point, Render, ScrollDelta, ScrollWheelEvent, Styled, TextAlign, TextRun, Window, canvas, component::ActiveTheme, div, hsla, point, px, size,
 };
 
-use crate::model::SchemaDocument;
+use crate::model::{GraphData, SchemaDocument};
+
+/// What (if anything) a left-button drag is currently operating on.
+#[derive(Clone, PartialEq)]
+enum DragMode {
+    /// Not dragging.
+    None,
+
+    /// Dragging a single rectangle by index.
+    Rect {
+        table_id: String,
+        rect: crate::model::Rect
+    },
+
+    /// The click landed on the connection line (recorded, no drag effect).
+    Line,
+
+    /// Panning the whole canvas.
+    Canvas,
+}
 
 pub struct DiagramView {
     schema: Entity<SchemaDocument>,
     scale: f32,
-    translate_point: Point<Pixels>,
+
+    drag: DragMode,
+
+    /// Screen-space translation of the whole canvas.
+    pan: Point<Pixels>,
+
+    /// Top-left of the canvas element in window coordinates, recorded each
+    /// paint and read back by event handlers for coordinate conversion.
     canvas_origin: Point<Pixels>,
 
     // for dragging
@@ -23,52 +49,300 @@ impl DiagramView {
         Self {
             schema,
             scale: 1.0,
-            translate_point: point(px(0.0), px(0.0)),
+            pan: point(px(0.0), px(0.0)),
             canvas_origin: point(px(0.0), px(0.0)),
             last_mouse: point(px(0.0), px(0.0)),
+            drag: DragMode::None,
         }
+    }
+}
+
+impl DiagramView {
+    /// Convert a screen (window pixel) point to world coordinates.
+    ///   world = (screen - origin - pan) / scale
+    fn screen_to_world(&self, screen: Point<Pixels>) -> Point<f32> {
+        point(
+            (screen.x - self.canvas_origin.x - self.pan.x) / px(self.scale),
+            (screen.y - self.canvas_origin.y - self.pan.y) / px(self.scale),
+        )
+    }
+
+    /// Pick what a press at `screen` should drag, in priority order:
+    /// rect (top-most first) -> connection line -> background pan.
+    fn pick_drag(&self, screen: Point<Pixels>, cx: &mut Context<Self>) -> DragMode {
+        let world = self.screen_to_world(screen);
+
+        // last added table, first check
+        for (_, table) in self.schema.read(cx).tables.iter().enumerate().rev() {
+            if let Some(g) = &table.graph
+                && g.rect.contains(crate::model::Point::new(world.x, world.y)) {
+                return DragMode::Rect {
+                    table_id: table.id.clone(),
+                    rect: g.rect,
+                }
+            }
+        }
+
+        // // Connection line: distance from the click to the segment between the
+        // // two rectangle centers, in world units. < ~6px/scale counts as a hit.
+        // let a = self.rects[0].center();
+        // let b = self.rects[1].center();
+        // if point_to_segment_dist(world, a, b) <= 6.0 / self.scale {
+        //     return DragMode::Line;
+        // }
+
+        DragMode::Canvas
+    }
+
+    fn on_mouse_down(&mut self, e: &MouseDownEvent, _window: &mut Window, cx: &mut Context<Self>) {
+        self.last_mouse = e.position;
+        self.drag = self.pick_drag(e.position, cx);
+        cx.notify();
+    }
+
+    fn on_mouse_move(&mut self, e: &MouseMoveEvent, _window: &mut Window, cx: &mut Context<Self>) {
+        if self.drag == DragMode::None {
+            return;
+        }
+
+        // Screen-space delta since last move.
+        let dx = e.position.x - self.last_mouse.x;
+        let dy = e.position.y - self.last_mouse.y;
+
+        match &self.drag {
+            DragMode::Rect { table_id, rect, } => {
+                // Convert the screen delta back to world units so the drag
+                // feels the same regardless of zoom.
+                // let new_x += dx / px(self.scale);
+                // let new_y += dy / px(self.scale);
+
+                self.schema.update(cx, |this, _| {
+                    if let Some(table) = this.tables.iter_mut().find(|t| &t.id == table_id)
+                        && let Some(g) = &mut table.graph {
+                            g.rect.left += dx / px(self.scale);
+                            g.rect.top += dy / px(self.scale);
+                            g.is_dirty = true;
+                        }
+                });
+            }
+            DragMode::Canvas => {
+                self.pan.x += dx;
+                self.pan.y += dy;
+            }
+            DragMode::Line => {
+                // Click landed on the line: recorded, but dragging does nothing.
+            }
+            DragMode::None => {}
+        }
+
+        self.last_mouse = e.position;
+        cx.notify();
+    }
+
+    fn on_mouse_up(&mut self, _e: &MouseUpEvent, _window: &mut Window, cx: &mut Context<Self>) {
+        self.drag = DragMode::None;
+        cx.notify();
+    }
+
+    fn on_scroll_wheel(
+        &mut self,
+        e: &ScrollWheelEvent,
+        _window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let mouse = e.position;
+        // World point currently under the cursor (with the old scale).
+        let world_before = self.screen_to_world(mouse);
+
+        // Prefer exact pixel deltas; fall back to lines at ~100px/line.
+        // GPUI's scroll sign is "natural": a positive delta.y scrolls toward the
+        // top (wheel up), so we zoom *in* on a positive delta.
+        let dy: f32 = match e.delta {
+            ScrollDelta::Pixels(p) => p.y / px(1.0),
+            ScrollDelta::Lines(l) => l.y * 100.0,
+        };
+        // Scroll up (dy>0) zooms in, scroll down (dy<0) zooms out.
+        let factor = 1.0 + dy * 0.002;
+        self.scale = (self.scale * factor).clamp(0.25, 4.0);
+
+        // Keep the world point under the cursor stationary:
+        //   pan = mouse - origin - world_before * scale
+        self.pan.x = mouse.x - self.canvas_origin.x - px(world_before.x * self.scale);
+        self.pan.y = mouse.y - self.canvas_origin.y - px(world_before.y * self.scale);
+
+        cx.notify();
     }
 }
 
 impl Render for DiagramView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let trans_point = self.translate_point;
+        let trans_point = self.pan;
         let scale = self.scale;
         let view = cx.entity().clone();
         let schema = self.schema.clone();
+        let pre_schema = self.schema.clone();
+
+        let text_color = cx.theme().foreground;
+        let bg_color = cx.theme().secondary;
+        let border_color = cx.theme().border;
+        let font_size = cx.theme().font_size;
 
         div()
             .id("diagram-canvas-box")
             .size_full()
             .rounded_md()
+            .overflow_hidden()
+            .on_mouse_down(MouseButton::Left, cx.listener(Self::on_mouse_down))
+            .on_mouse_move(cx.listener(Self::on_mouse_move))
+            .on_mouse_up(MouseButton::Left, cx.listener(Self::on_mouse_up))
+            .on_scroll_wheel(cx.listener(Self::on_scroll_wheel))
             .child(
                 canvas(
-                    move |_, _, _| (),
-                    move |bounds, _, window, cx| {
-                        let _ = view.update(cx, |this, _| this.canvas_origin = bounds.origin);
-                        let origin = bounds.origin;
-
-                        let font_size = cx.theme().font_size;
+                    move |_, window, cx| {
                         let font = Font {
                             family: cx.theme().mono_font_family.clone(),
                             ..Default::default()
                         };
-                        let text_color = cx.theme().foreground;
-                        let bg_color = cx.theme().secondary;
+
+                        pre_schema.update(cx, |this, _| {
+                            for table in &mut this.tables {
+                                if table.graph.is_some() && !table.graph.as_ref().unwrap().is_dirty
+                                {
+                                    return;
+                                }
+
+                                let old_origin = if let Some(g) = &table.graph {
+                                    (g.rect.left, g.rect.top)
+                                } else {
+                                    (0.0, 0.0)
+                                };
+
+                                let height = (table.columns.len() + 1) as f32 * font_size.as_f32();
+
+                                let runs = vec![TextRun {
+                                    len: table.name.len(),
+                                    font: font.clone(),
+                                    color: text_color,
+                                    ..Default::default()
+                                }];
+
+                                let shaped = window.text_system().shape_line(
+                                    table.name.clone().into(),
+                                    font_size,
+                                    &runs,
+                                    None,
+                                );
+
+                                let name_width = shaped.width.as_f32();
+
+                                // 先按照字符的数量来算最大宽度。这个在等宽字体下是成立的。
+                                // 但是如果未来允许用户自行设置字体的话，就需要真实的测量每个列的宽度之后再决定哪个是最宽的
+                                let col_width =
+                                    match table.columns.iter().map(|c| c.name.len()).max() {
+                                        Some(u) => {
+                                            table
+                                                .columns
+                                                .iter()
+                                                .find(|c| c.name.len() == u)
+                                                .map(|c| {
+                                                    let runs = vec![TextRun {
+                                                        len: c.name.len(),
+                                                        font: font.clone(),
+                                                        color: text_color,
+                                                        ..Default::default()
+                                                    }];
+
+                                                    let shaped = window.text_system().shape_line(
+                                                        c.name.clone().into(),
+                                                        font_size,
+                                                        &runs,
+                                                        None,
+                                                    );
+
+                                                    shaped.width.as_f32()
+                                                })
+                                                .unwrap_or(name_width)
+                                        }
+                                        None => name_width,
+                                    };
+
+                                let table_width = if name_width > col_width {
+                                    name_width
+                                } else {
+                                    col_width
+                                };
+
+                                table.graph = Some(GraphData {
+                                    is_dirty: false,
+                                    selected: false,
+                                    rect: crate::model::Rect::new(
+                                        old_origin.0,
+                                        old_origin.1,
+                                        table_width,
+                                        height,
+                                    ),
+                                    points: vec![],
+                                });
+                            }
+                        });
+                    },
+                    move |bounds, _, window, cx| {
+                        let _ = view.update(cx, |this, _| this.canvas_origin = bounds.origin);
+                        let origin = bounds.origin;
+
+                        let border_widths = Edges {
+                            left: px(1.0 * scale),
+                            top: px(1. * scale),
+                            right: px(1. * scale),
+                            bottom: px(1. * scale),
+                        };
+
+                        let corners = Corners {
+                            top_left: px(4.0 * scale),
+                            top_right: px(4.0 * scale),
+                            bottom_right: px(4.0 * scale),
+                            bottom_left: px(4.0 * scale),
+                        };
 
                         let tables = schema
-                                .read(cx)
-                                .tables
-                                .iter()
-                                .map(|t| t.clone())
-                                .collect::<Vec<_>>();
+                            .read(cx)
+                            .tables
+                            .iter()
+                            .map(|table| table.clone())
+                            .collect::<Vec<_>>();
 
-                        for (i, table) in tables.iter().enumerate() {
+                        tables.iter().for_each(|table| {
+                            if table.graph.is_none() {
+                                return;
+                            }
+
+                            let graph = table.graph.as_ref().unwrap();
+
                             let top_left = point(
-                                origin.x + trans_point.x + px(10.0 * scale) + px(i as f32 * 100.0),
-                                origin.y + trans_point.y + px(10.0 * scale),
+                                origin.x + trans_point.x + px(graph.rect.left * scale),
+                                origin.y + trans_point.y + px(graph.rect.top * scale),
                             );
 
+                            let size = size(px(graph.rect.width * scale), px(graph.rect.height * scale));
+
+                            window.paint_quad(PaintQuad {
+                                bounds: Bounds {
+                                    origin: top_left,
+                                    size,
+                                },
+                                corner_radii: corners,
+                                background: bg_color.into(),
+                                border_widths,
+                                border_color: border_color,
+                                border_style: BorderStyle::default(),
+                            });
+
+                            let font = Font {
+                                family: cx.theme().mono_font_family.clone(),
+                                ..Default::default()
+                            };
+
+                            // table name
                             let runs = vec![TextRun {
                                 len: table.name.len(),
                                 font: font.clone(),
@@ -83,28 +357,42 @@ impl Render for DiagramView {
                                 None,
                             );
 
-                            let w = px(shaped.width.as_f32());
-                            let sz = size(w, px(100.0 * scale));
+                            let _ = shaped.paint(
+                                top_left,
+                                font_size,
+                                TextAlign::Left,
+                                None,
+                                window,
+                                cx,
+                            );
 
-                            window.paint_quad(PaintQuad {
-                                bounds: Bounds {
-                                    origin: top_left,
-                                    size: sz,
-                                },
-                                corner_radii: Corners::default(),
-                                background: bg_color.into(),
-                                border_widths: Edges {
-                                    left: px(2.),
-                                    top: px(2.),
-                                    right: px(2.),
-                                    bottom: px(2.),
-                                },
-                                border_color: hsla(0., 0., 0.2, 1.),
-                                border_style: BorderStyle::default(),
-                            });
+                            // column names
+                            for (i, col) in table.columns.iter().enumerate() {
+                                let runs = vec![TextRun {
+                                    len: col.name.len(),
+                                    font: font.clone(),
+                                    color: text_color,
+                                    ..Default::default()
+                                }];
 
-                            let _ = shaped.paint(top_left, font_size, TextAlign::Left, None, window, cx);
-                        }
+                                let shaped = window.text_system().shape_line(
+                                    col.name.clone().into(),
+                                    font_size,
+                                    &runs,
+                                    None,
+                                );
+
+                                let _ = shaped.paint(
+                                    top_left
+                                        + point(px(0.0), px((i + 1) as f32 * font_size.as_f32())),
+                                    font_size,
+                                    TextAlign::Left,
+                                    None,
+                                    window,
+                                    cx,
+                                );
+                            }
+                        });
                     },
                 )
                 .size_full(),

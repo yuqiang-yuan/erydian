@@ -46,12 +46,87 @@ impl SchemaDocument {
     }
 }
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct Point {
+    pub x: f32,
+    pub y: f32,
+}
+
+impl Point {
+    pub fn new(x: f32, y: f32) -> Self {
+        Self {
+            x,
+            y
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct Size {
+    pub width: f32,
+    pub height: f32,
+}
+
+impl Size {
+    pub fn new(width: f32, height: f32) -> Self {
+        Self {
+            width,
+            height
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct Rect {
+    pub left: f32,
+    pub top: f32,
+    pub width: f32,
+    pub height: f32,
+}
+
+impl Rect {
+    pub fn new(left: f32, top: f32, width: f32, height: f32) -> Self {
+        Self {
+            left,
+            top,
+            width,
+            height
+        }
+    }
+
+    pub fn center(&self) -> Point {
+        Point {
+            x: (self.left + self.width) / 2.0,
+            y: (self.top + self.height) / 2.0,
+        }
+    }
+
+    pub fn contains(&self, point: Point) -> bool {
+        self.left <= point.x
+        && self.left + self.width >= point.x
+        && self.top <= point.y
+        && self.top + self.height >= point.y
+    }
+}
+
+/// data related to the graph
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GraphData {
+    pub is_dirty: bool,
+    pub selected: bool,
+    pub rect: Rect,
+    pub points: Vec<Point>
+}
+
+impl GraphData {}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TableSpec {
     pub id: String,
     pub name: String,
     pub attrs: BTreeMap<String, AttrValue>,
     pub columns: Vec<ColumnSpec>,
+    pub graph: Option<GraphData>,
 }
 
 impl TableSpec {
@@ -66,6 +141,7 @@ impl TableSpec {
                 ColumnSpec::new("sex"),
                 ColumnSpec::new("badge_number"),
             ],
+            graph: None,
         }
     }
 }

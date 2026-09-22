@@ -11,7 +11,10 @@ use gpui_kit::component::*;
 use gpui_kit::prelude::FluentBuilder;
 use gpui_kit::*;
 
-use crate::actions::{AboutAction, FileOpenedAction, FileSavedAction, NewRelationshipAction, NewSchemaAction, NewTableAction, OpenFileAction, QuitAction, SaveFileAction, SchemaCreatedAction};
+use crate::actions::{
+    AboutAction, FileOpenedAction, FileSavedAction, NewRelationshipAction, NewSchemaAction,
+    NewTableAction, OpenFileAction, QuitAction, SaveFileAction, SchemaCreatedAction,
+};
 use crate::dialect::DialectKind;
 use crate::model::{SchemaDocument, TableSpec};
 use crate::settings::{AppSettings, RecentFiles};
@@ -49,14 +52,12 @@ fn gen_test_schema(cx: &mut Context<MainView>) -> Entity<SchemaDocument> {
             BTreeMap::new(),
         );
 
-        doc.tables.extend(
-            vec![
-                TableSpec::new("users"),
-                TableSpec::new("posts"),
-                TableSpec::new("comments"),
-                TableSpec::new("orders"),
-            ]
-        );
+        doc.tables.extend(vec![
+            TableSpec::new("users"),
+            TableSpec::new("posts"),
+            TableSpec::new("comments"),
+            TableSpec::new("orders"),
+        ]);
 
         doc
     })
@@ -99,7 +100,8 @@ impl MainView {
             settings.window_maximized = Some(is_maximum);
         }));
 
-        let temp_schema = cx.new(|_| SchemaDocument::new(DialectKind::MySql, "temp", BTreeMap::new()));
+        let temp_schema =
+            cx.new(|_| SchemaDocument::new(DialectKind::MySql, "temp", BTreeMap::new()));
 
         let focus_handle_clone = focus_handle.clone();
         window.defer(cx, move |window, cx| {
@@ -115,13 +117,7 @@ impl MainView {
             scene: Scene::Welcome,
             welcome_view: cx.new(|_| WelcomeView::new()),
             new_schema_view: cx.new(|cx| NewSchemaView::new(DialectKind::MySql, window, cx)),
-            editor_view: cx.new(|cx| {
-                EditorView::new(
-                    temp_schema.clone(),
-                    window,
-                    cx,
-                )
-            }),
+            editor_view: cx.new(|cx| EditorView::new(temp_schema.clone(), window, cx)),
             _subscriptions: subscriptions,
             show_fps: false,
             last_path: None,
@@ -164,13 +160,15 @@ impl MainView {
 
     fn on_table_added_action(
         &mut self,
-        action: &NewTableAction,
+        _: &NewTableAction,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        println!("new table added action handler");
         if let Some(doc) = &self.schema {
+            println!("add new table to schema document");
             doc.update(cx, |this, cx| {
-                this.tables.push(TableSpec::new("table"));
+                this.tables.push(TableSpec::new(format!("table_{}", this.tables.len() + 1)));
                 cx.notify();
             })
         }
@@ -180,7 +178,7 @@ impl MainView {
         &mut self,
         _: &SaveFileAction,
         window: &mut Window,
-        cx: &mut Context<Self>
+        cx: &mut Context<Self>,
     ) {
         println!("begin to prompt for saving file");
         if self.schema.is_none() {
@@ -192,17 +190,22 @@ impl MainView {
         } else {
             let home_path = dirs::home_dir().unwrap();
             let path = cx.prompt_for_new_path(
-                self.last_path.as_ref().map(|p| p.as_path()).unwrap_or(home_path.as_path()),
-                Some("Untitled.erj")
+                self.last_path
+                    .as_ref()
+                    .map(|p| p.as_path())
+                    .unwrap_or(home_path.as_path()),
+                Some("Untitled.erj"),
             );
 
             cx.spawn_in(window, async move |this, cx| {
                 if let Ok(Ok(Some(file))) = path.await {
                     this.update_in(cx, |this, window, cx| {
                         this.save(file, window, cx);
-                    }).ok();
+                    })
+                    .ok();
                 }
-            }).detach();
+            })
+            .detach();
         }
     }
 
@@ -212,7 +215,10 @@ impl MainView {
             && let Ok(_) = fs::write(&file_path, s)
         {
             self.file_path = Some(file_path.clone());
-            self.last_path = file_path.parent().map(|p| Some(p.to_path_buf())).unwrap_or(None);
+            self.last_path = file_path
+                .parent()
+                .map(|p| Some(p.to_path_buf()))
+                .unwrap_or(None);
 
             // save recent files
             let mut recent_files = RecentFiles::load();
@@ -220,28 +226,44 @@ impl MainView {
             recent_files.save();
 
             window.push_notification(
-                (NotificationType::Success, format!("File saved to: {}", file_path.display())),
-                cx
+                (
+                    NotificationType::Success,
+                    format!("File saved to: {}", file_path.display()),
+                ),
+                cx,
             );
         }
     }
 
-    fn on_file_opened_action(&mut self, action: &FileOpenedAction, window: &mut Window, cx: &mut Context<Self>) {
+    fn on_file_opened_action(
+        &mut self,
+        action: &FileOpenedAction,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         if action.path.exists()
             && let Ok(s) = fs::read_to_string(&action.path)
-            && let Ok(doc) = serde_json::from_str::<SchemaDocument>(&s)
+            && let Ok(mut doc) = serde_json::from_str::<SchemaDocument>(&s)
         {
+            // force grap redraw
+            doc.tables.iter_mut().for_each(|t| {
+                if let Some(g) = &mut t.graph {
+                    g.is_dirty = true;
+                }
+            });
+
+            let ent_doc = cx.new(|_| doc);
             self.file_path = Some(action.path.clone());
-            self.schema = Some(cx.new(|_| doc));
+            self.schema = Some(ent_doc.clone());
+
+            self.editor_view = cx.new(|cx| EditorView::new(ent_doc.clone(), window, cx));
+
             self.scene = Scene::Editor;
             cx.notify();
-        }
-        else
-        {
-            window.push_notification(
-                (NotificationType::Error, "Open file failed"),
-                cx
-            );
+
+            self.focus_handle.focus(window, cx);
+        } else {
+            window.push_notification((NotificationType::Error, "Open file failed"), cx);
         }
     }
 }

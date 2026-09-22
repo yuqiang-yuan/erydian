@@ -5,9 +5,8 @@ use crate::{
     view::diagram_view::DiagramView,
 };
 use gpui_kit::{
-    AppContext, Context, Element, Entity, InteractiveElement, IntoElement, ParentElement, Render,
+    AppContext, Context, Entity, InteractiveElement, IntoElement, ParentElement, Render,
     StatefulInteractiveElement, Styled, Window,
-    WindowBackgroundAppearance::Transparent,
     base::{StyledExt, h_resizable, resizable_panel, v_resizable},
     component::{ActiveTheme, Icon, scroll::ScrollableElement},
     div,
@@ -84,20 +83,21 @@ impl EditorView {
                     )
                     .children(self.schema.read(cx).tables.iter().map(|t| {
                         let id_clone = t.id.clone();
-                        let is_selected = self.selected_id.as_ref() == Some(&t.id);
+                        // let is_selected = self.selected_id.as_ref() == Some(&t.id);
                         div()
                             .id(t.id.clone())
-                            .when(is_selected, |this| {
-                                this.border_color(cx.theme().list_active_border)
-                                    .bg(cx.theme().list_active)
-                            })
-                            .when(!is_selected, |this| {
-                                this.hover(|style| {
-                                    style
-                                        .bg(cx.theme().list_active)
-                                        .border_color(cx.theme().transparent)
-                                })
-                            })
+                            // .when(is_selected, |this| {
+                            //     this.border_color(cx.theme().list_active_border)
+                            //         .bg(cx.theme().list_active)
+                            // })
+                            // .when(!is_selected, |this| {
+                            //     this.hover(|style| {
+                            //         style
+                            //             .bg(cx.theme().list_active)
+                            //             .border_color(cx.theme().transparent)
+                            //     })
+                            // })
+                            .hover(|style| style.bg(cx.theme().list_active))
                             .border_1()
                             .rounded_sm()
                             .p_1()
