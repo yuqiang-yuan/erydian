@@ -44,24 +44,24 @@ pub struct MainView {
     file_path: Option<PathBuf>,
 }
 
-fn gen_test_schema(cx: &mut Context<MainView>) -> Entity<SchemaDocument> {
-    cx.new(|_| {
-        let mut doc = SchemaDocument::new(
-            DialectKind::MySql,
-            "MyTest And a very long name",
-            BTreeMap::new(),
-        );
+// fn gen_test_schema(cx: &mut Context<MainView>) -> Entity<SchemaDocument> {
+//     cx.new(|_| {
+//         let mut doc = SchemaDocument::new(
+//             DialectKind::MySql,
+//             "MyTest And a very long name",
+//             BTreeMap::new(),
+//         );
 
-        doc.tables.extend(vec![
-            TableSpec::new("users"),
-            TableSpec::new("posts"),
-            TableSpec::new("comments"),
-            TableSpec::new("orders"),
-        ]);
+//         doc.tables.extend(vec![
+//             TableSpec::new("users"),
+//             TableSpec::new("posts"),
+//             TableSpec::new("comments"),
+//             TableSpec::new("orders"),
+//         ]);
 
-        doc
-    })
-}
+//         doc
+//     })
+// }
 
 impl MainView {
     pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {

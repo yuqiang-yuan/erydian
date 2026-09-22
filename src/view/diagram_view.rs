@@ -11,10 +11,7 @@ enum DragMode {
     None,
 
     /// Dragging a single rectangle by index.
-    Rect {
-        table_id: String,
-        rect: crate::model::Rect
-    },
+    Table(String),
 
     /// The click landed on the connection line (recorded, no drag effect).
     Line,
@@ -41,11 +38,7 @@ pub struct DiagramView {
 }
 
 impl DiagramView {
-    pub fn new(
-        schema: Entity<SchemaDocument>,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) -> Self {
+    pub fn new(schema: Entity<SchemaDocument>, _: &mut Window, _: &mut Context<Self>) -> Self {
         Self {
             schema,
             scale: 1.0,
@@ -75,11 +68,9 @@ impl DiagramView {
         // last added table, first check
         for (_, table) in self.schema.read(cx).tables.iter().enumerate().rev() {
             if let Some(g) = &table.graph
-                && g.rect.contains(crate::model::Point::new(world.x, world.y)) {
-                return DragMode::Rect {
-                    table_id: table.id.clone(),
-                    rect: g.rect,
-                }
+                && g.rect.contains(crate::model::Point::new(world.x, world.y))
+            {
+                return DragMode::Table(table.id.clone());
             }
         }
 
@@ -110,19 +101,15 @@ impl DiagramView {
         let dy = e.position.y - self.last_mouse.y;
 
         match &self.drag {
-            DragMode::Rect { table_id, rect, } => {
-                // Convert the screen delta back to world units so the drag
-                // feels the same regardless of zoom.
-                // let new_x += dx / px(self.scale);
-                // let new_y += dy / px(self.scale);
-
+            DragMode::Table(table_id) => {
                 self.schema.update(cx, |this, _| {
                     if let Some(table) = this.tables.iter_mut().find(|t| &t.id == table_id)
-                        && let Some(g) = &mut table.graph {
-                            g.rect.left += dx / px(self.scale);
-                            g.rect.top += dy / px(self.scale);
-                            g.is_dirty = true;
-                        }
+                        && let Some(g) = &mut table.graph
+                    {
+                        g.rect.left += dx / px(self.scale);
+                        g.rect.top += dy / px(self.scale);
+                        g.is_dirty = true;
+                    }
                 });
             }
             DragMode::Canvas => {
@@ -162,7 +149,7 @@ impl DiagramView {
             ScrollDelta::Lines(l) => l.y * 100.0,
         };
         // Scroll up (dy>0) zooms in, scroll down (dy<0) zooms out.
-        let factor = 1.0 + dy * 0.002;
+        let factor = 1.0 + dy * 0.0001;
         self.scale = (self.scale * factor).clamp(0.25, 4.0);
 
         // Keep the world point under the cursor stationary:
@@ -175,7 +162,7 @@ impl DiagramView {
 }
 
 impl Render for DiagramView {
-    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let trans_point = self.pan;
         let scale = self.scale;
         let view = cx.entity().clone();
@@ -184,8 +171,13 @@ impl Render for DiagramView {
 
         let text_color = cx.theme().foreground;
         let bg_color = cx.theme().secondary;
+        let table_name_bg_color = cx.theme().list_active_border;
+        let table_name_color = hsla(0.0, 0.0, 1.0, 1.0);
         let border_color = cx.theme().border;
         let font_size = cx.theme().font_size;
+
+        let padding_y = 8.0f32;
+        let padding_x = 12.0f32;
 
         div()
             .id("diagram-canvas-box")
@@ -217,8 +209,6 @@ impl Render for DiagramView {
                                     (0.0, 0.0)
                                 };
 
-                                let height = (table.columns.len() + 1) as f32 * font_size.as_f32();
-
                                 let runs = vec![TextRun {
                                     len: table.name.len(),
                                     font: font.clone(),
@@ -239,30 +229,28 @@ impl Render for DiagramView {
                                 // 但是如果未来允许用户自行设置字体的话，就需要真实的测量每个列的宽度之后再决定哪个是最宽的
                                 let col_width =
                                     match table.columns.iter().map(|c| c.name.len()).max() {
-                                        Some(u) => {
-                                            table
-                                                .columns
-                                                .iter()
-                                                .find(|c| c.name.len() == u)
-                                                .map(|c| {
-                                                    let runs = vec![TextRun {
-                                                        len: c.name.len(),
-                                                        font: font.clone(),
-                                                        color: text_color,
-                                                        ..Default::default()
-                                                    }];
+                                        Some(u) => table
+                                            .columns
+                                            .iter()
+                                            .find(|c| c.name.len() == u)
+                                            .map(|c| {
+                                                let runs = vec![TextRun {
+                                                    len: c.name.len(),
+                                                    font: font.clone(),
+                                                    color: text_color,
+                                                    ..Default::default()
+                                                }];
 
-                                                    let shaped = window.text_system().shape_line(
-                                                        c.name.clone().into(),
-                                                        font_size,
-                                                        &runs,
-                                                        None,
-                                                    );
+                                                let shaped = window.text_system().shape_line(
+                                                    c.name.clone().into(),
+                                                    font_size,
+                                                    &runs,
+                                                    None,
+                                                );
 
-                                                    shaped.width.as_f32()
-                                                })
-                                                .unwrap_or(name_width)
-                                        }
+                                                shaped.width.as_f32()
+                                            })
+                                            .unwrap_or(name_width),
                                         None => name_width,
                                     };
 
@@ -270,7 +258,9 @@ impl Render for DiagramView {
                                     name_width
                                 } else {
                                     col_width
-                                };
+                                } + padding_x * 2.0;
+
+                                let height = (table.columns.len() + 1) as f32 * (font_size.as_f32() + padding_y * 2.0) + padding_y * 2.0;
 
                                 table.graph = Some(GraphData {
                                     is_dirty: false,
@@ -290,14 +280,14 @@ impl Render for DiagramView {
                         let _ = view.update(cx, |this, _| this.canvas_origin = bounds.origin);
                         let origin = bounds.origin;
 
-                        let border_widths = Edges {
+                        let scaled_border_widths = Edges {
                             left: px(1.0 * scale),
                             top: px(1. * scale),
                             right: px(1. * scale),
                             bottom: px(1. * scale),
                         };
 
-                        let corners = Corners {
+                        let scaled_corners = Corners {
                             top_left: px(4.0 * scale),
                             top_right: px(4.0 * scale),
                             bottom_right: px(4.0 * scale),
@@ -311,6 +301,16 @@ impl Render for DiagramView {
                             .map(|table| table.clone())
                             .collect::<Vec<_>>();
 
+
+                        let font = Font {
+                            family: cx.theme().mono_font_family.clone(),
+                            ..Default::default()
+                        };
+
+                        let scaled_padding_x = padding_x * scale;
+                        let scaled_padding_y = padding_y * scale;
+                        let scaled_font_size = font_size * scale;
+
                         tables.iter().for_each(|table| {
                             if table.graph.is_none() {
                                 return;
@@ -323,43 +323,65 @@ impl Render for DiagramView {
                                 origin.y + trans_point.y + px(graph.rect.top * scale),
                             );
 
-                            let size = size(px(graph.rect.width * scale), px(graph.rect.height * scale));
+                            let scaled_size =
+                                size(px(graph.rect.width * scale), px(graph.rect.height * scale));
 
                             window.paint_quad(PaintQuad {
                                 bounds: Bounds {
                                     origin: top_left,
-                                    size,
+                                    size: scaled_size,
                                 },
-                                corner_radii: corners,
+                                corner_radii: scaled_corners,
                                 background: bg_color.into(),
-                                border_widths,
+                                border_widths: scaled_border_widths,
                                 border_color: border_color,
                                 border_style: BorderStyle::default(),
                             });
 
-                            let font = Font {
-                                family: cx.theme().mono_font_family.clone(),
-                                ..Default::default()
-                            };
+                            // table title bar bg
+                            window.paint_quad(PaintQuad {
+                                bounds: Bounds {
+                                    origin: top_left,
+                                    size: size(
+                                        px(graph.rect.width * scale),
+                                        px(scaled_font_size.as_f32() + scaled_padding_y * 3.0)
+                                    ),
+                                },
+                                corner_radii: Corners {
+                                    top_left: px(4.0 * scale),
+                                    top_right: px(4.0 * scale),
+                                    bottom_right: px(0.0),
+                                    bottom_left: px(0.0),
+                                },
+                                background: table_name_bg_color.into(),
+                                border_widths: Edges {
+                                    left: px(0.0),
+                                    top: px(0.0),
+                                    right: px(0.0),
+                                    bottom: px(0.0),
+                                },
+                                border_color: border_color,
+                                border_style: BorderStyle::default(),
+                            });
 
                             // table name
                             let runs = vec![TextRun {
                                 len: table.name.len(),
                                 font: font.clone(),
-                                color: text_color,
+                                color: table_name_color,
                                 ..Default::default()
                             }];
 
                             let shaped = window.text_system().shape_line(
                                 table.name.clone().into(),
-                                font_size,
+                                scaled_font_size,
                                 &runs,
                                 None,
                             );
 
                             let _ = shaped.paint(
-                                top_left,
-                                font_size,
+                                top_left + point(px(scaled_padding_x), px(scaled_padding_y * 1.5)), // the table rect has padding
+                                scaled_font_size,
                                 TextAlign::Left,
                                 None,
                                 window,
@@ -377,15 +399,18 @@ impl Render for DiagramView {
 
                                 let shaped = window.text_system().shape_line(
                                     col.name.clone().into(),
-                                    font_size,
+                                    scaled_font_size,
                                     &runs,
                                     None,
                                 );
 
                                 let _ = shaped.paint(
                                     top_left
-                                        + point(px(0.0), px((i + 1) as f32 * font_size.as_f32())),
-                                    font_size,
+                                        + point(
+                                            px(scaled_padding_x),
+                                            px((i + 1) as f32 * (scaled_font_size.as_f32() + scaled_padding_y * 2.0) + scaled_padding_y * 2.0)
+                                        ),
+                                    font_size * scale,
                                     TextAlign::Left,
                                     None,
                                     window,
