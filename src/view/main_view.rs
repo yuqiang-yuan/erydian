@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use gpui_fps::fps_monitor;
 use gpui_kit::component::button::{Button, ButtonVariants};
@@ -12,7 +12,7 @@ use gpui_kit::prelude::FluentBuilder;
 use gpui_kit::*;
 
 use crate::actions::{
-    AboutAction, FileOpenedAction, FileSavedAction, NewRelationshipAction, NewSchemaAction,
+    AboutAction, FileOpenedAction, NewRelationshipAction, NewSchemaAction,
     NewTableAction, OpenFileAction, QuitAction, SaveFileAction, SchemaCreatedAction,
 };
 use crate::dialect::DialectKind;
@@ -34,7 +34,7 @@ pub struct MainView {
     scene: Scene,
     welcome_view: Entity<WelcomeView>,
     new_schema_view: Entity<NewSchemaView>,
-    editor_view: Entity<EditorView>,
+    editor_view: Option<Entity<EditorView>>,
     _subscriptions: Vec<Subscription>,
     show_fps: bool,
 
@@ -43,25 +43,6 @@ pub struct MainView {
     // the current opened file's path
     file_path: Option<PathBuf>,
 }
-
-// fn gen_test_schema(cx: &mut Context<MainView>) -> Entity<SchemaDocument> {
-//     cx.new(|_| {
-//         let mut doc = SchemaDocument::new(
-//             DialectKind::MySql,
-//             "MyTest And a very long name",
-//             BTreeMap::new(),
-//         );
-
-//         doc.tables.extend(vec![
-//             TableSpec::new("users"),
-//             TableSpec::new("posts"),
-//             TableSpec::new("comments"),
-//             TableSpec::new("orders"),
-//         ]);
-
-//         doc
-//     })
-// }
 
 impl MainView {
     pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
@@ -117,7 +98,7 @@ impl MainView {
             scene: Scene::Welcome,
             welcome_view: cx.new(|_| WelcomeView::new()),
             new_schema_view: cx.new(|cx| NewSchemaView::new(DialectKind::MySql, window, cx)),
-            editor_view: cx.new(|cx| EditorView::new(temp_schema.clone(), window, cx)),
+            editor_view: None,
             _subscriptions: subscriptions,
             show_fps: false,
             last_path: None,
@@ -128,7 +109,7 @@ impl MainView {
     fn on_new_schema_action(
         &mut self,
         _: &NewSchemaAction,
-        window: &mut Window,
+        _: &mut Window,
         cx: &mut Context<Self>,
     ) {
         println!("new scheme action received");
@@ -147,7 +128,7 @@ impl MainView {
             let ent_schema_clone = ent_schema.clone();
 
             self.schema = Some(ent_schema);
-            self.editor_view = cx.new(|cx| EditorView::new(ent_schema_clone, window, cx));
+            self.editor_view = Some(cx.new(|cx| EditorView::new(ent_schema_clone, window, cx)));
             self.scene = Scene::Editor;
 
             cx.notify();
@@ -161,7 +142,7 @@ impl MainView {
     fn on_table_added_action(
         &mut self,
         _: &NewTableAction,
-        window: &mut Window,
+        _: &mut Window,
         cx: &mut Context<Self>,
     ) {
         println!("new table added action handler");
@@ -256,7 +237,7 @@ impl MainView {
             self.file_path = Some(action.path.clone());
             self.schema = Some(ent_doc.clone());
 
-            self.editor_view = cx.new(|cx| EditorView::new(ent_doc.clone(), window, cx));
+            self.editor_view = Some(cx.new(|cx| EditorView::new(ent_doc.clone(), window, cx)));
 
             self.scene = Scene::Editor;
             cx.notify();
@@ -298,7 +279,13 @@ impl Render for MainView {
             .child(match self.scene {
                 Scene::Welcome => div().size_full().child(self.welcome_view.clone()),
                 Scene::NewSchema => div().size_full().child(self.new_schema_view.clone()),
-                Scene::Editor => div().size_full().p_1().child(self.editor_view.clone()),
+                Scene::Editor => div().size_full().p_1().child(
+                    if let Some(v) = &self.editor_view {
+                        v.clone().into_any_element()
+                    } else {
+                        div().into_any_element()
+                    }
+                ),
             })
             .when(matches!(self.scene, Scene::Editor), |this| {
                 this.child(StatusBar::new().left("Ready"))

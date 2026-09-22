@@ -10,13 +10,12 @@ use gpui_kit::{
     base::{StyledExt, h_resizable, resizable_panel, v_resizable},
     component::{ActiveTheme, Icon, scroll::ScrollableElement},
     div,
-    prelude::FluentBuilder,
     px, relative,
 };
 
 pub struct EditorView {
     schema: Entity<SchemaDocument>,
-    selected_id: Option<String>,
+    selected_id: Entity<Option<String>>,
     diagram_view: Entity<DiagramView>,
 }
 
@@ -28,12 +27,12 @@ impl EditorView {
     ) -> Self {
         Self {
             schema: schema.clone(),
-            selected_id: None,
+            selected_id: cx.new(|_| None),
             diagram_view: cx.new(|cx| DiagramView::new(schema, window, cx)),
         }
     }
 
-    fn object_list(&self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn object_list(&self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         div()
             .size_full()
             .v_flex()
@@ -105,7 +104,7 @@ impl EditorView {
                             .line_height(relative(1.3))
                             .child(t.name.clone())
                             .on_click(cx.listener(move |this, _, _, cx| {
-                                this.selected_id = Some(id_clone.clone());
+                                this.selected_id.update(cx, |id, _| *id = Some(id_clone.clone()));
                                 cx.notify();
                             }))
                     }))
@@ -120,16 +119,7 @@ impl EditorView {
             )
     }
 
-    fn er_canvas(&self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        div()
-            .size_full()
-            .v_flex()
-            .rounded_md()
-            .border_1()
-            .border_color(cx.theme().border)
-    }
-
-    fn detail_panel(&self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn detail_panel(&self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         div()
             .size_full()
             .v_flex()

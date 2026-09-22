@@ -1,5 +1,8 @@
 use gpui_kit::{
-    BorderStyle, Bounds, Context, Corners, Edges, Entity, Font, InteractiveElement, IntoElement, MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, PaintQuad, ParentElement, Pixels, Point, Render, ScrollDelta, ScrollWheelEvent, Styled, TextAlign, TextRun, Window, canvas, component::ActiveTheme, div, hsla, point, px, size,
+    BorderStyle, Bounds, Context, Corners, Edges, Entity, Font, InteractiveElement, IntoElement,
+    MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, PaintQuad, ParentElement, Pixels,
+    Point, Render, ScrollDelta, ScrollWheelEvent, Styled, TextAlign, TextRun, Window, canvas,
+    component::ActiveTheme, div, hsla, point, px, size,
 };
 
 use crate::model::{GraphData, SchemaDocument};
@@ -260,7 +263,9 @@ impl Render for DiagramView {
                                     col_width
                                 } + padding_x * 2.0;
 
-                                let height = (table.columns.len() + 1) as f32 * (font_size.as_f32() + padding_y * 2.0) + padding_y * 2.0;
+                                let height = (table.columns.len() + 1) as f32
+                                    * (font_size.as_f32() + padding_y * 2.0)
+                                    + padding_y * 2.0;
 
                                 table.graph = Some(GraphData {
                                     is_dirty: false,
@@ -301,7 +306,6 @@ impl Render for DiagramView {
                             .map(|table| table.clone())
                             .collect::<Vec<_>>();
 
-
                         let font = Font {
                             family: cx.theme().mono_font_family.clone(),
                             ..Default::default()
@@ -326,6 +330,7 @@ impl Render for DiagramView {
                             let scaled_size =
                                 size(px(graph.rect.width * scale), px(graph.rect.height * scale));
 
+                            // table rectangle
                             window.paint_quad(PaintQuad {
                                 bounds: Bounds {
                                     origin: top_left,
@@ -344,7 +349,7 @@ impl Render for DiagramView {
                                     origin: top_left,
                                     size: size(
                                         px(graph.rect.width * scale),
-                                        px(scaled_font_size.as_f32() + scaled_padding_y * 3.0)
+                                        px(scaled_font_size.as_f32() + scaled_padding_y * 3.0),
                                     ),
                                 },
                                 corner_radii: Corners {
@@ -408,7 +413,10 @@ impl Render for DiagramView {
                                     top_left
                                         + point(
                                             px(scaled_padding_x),
-                                            px((i + 1) as f32 * (scaled_font_size.as_f32() + scaled_padding_y * 2.0) + scaled_padding_y * 2.0)
+                                            px((i + 1) as f32
+                                                * (scaled_font_size.as_f32()
+                                                    + scaled_padding_y * 2.0)
+                                                + scaled_padding_y * 2.0),
                                         ),
                                     font_size * scale,
                                     TextAlign::Left,
