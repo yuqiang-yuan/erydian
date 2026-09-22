@@ -1,4 +1,4 @@
-use std::fs;
+use std::{fs, path::{Path, PathBuf}, time::{SystemTime, UNIX_EPOCH}};
 
 use gpui_kit::Global;
 use schemars::JsonSchema;
@@ -71,5 +71,75 @@ impl Default for AppSettings {
             editor_h_pos: Some(200.0),
             editor_v_pos: Some(200.0),
         }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RecentFileItem {
+    pub name: String,
+    pub path: PathBuf,
+    pub ts: u128,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RecentFiles {
+    pub files: Vec<RecentFileItem>,
+}
+
+impl RecentFiles {
+    pub fn new() -> Self {
+        Self {
+            files: vec![]
+        }
+    }
+
+    pub fn load() -> Self {
+        if let Some(p) = dirs::config_local_dir() {
+            let file_path = p.join(APP_ID).join("recent-files.json");
+            if file_path.exists()
+                && let Ok(s) = fs::read_to_string(file_path)
+                && let Ok(files) = serde_json::from_str::<RecentFiles>(&s)
+            {
+                files
+            } else {
+                Self::new()
+            }
+        } else {
+            Self::new()
+        }
+    }
+
+    pub fn save(&self) {
+        if let Ok(s) = serde_json::to_string(self) {
+            if let Some(p) = dirs::config_local_dir() {
+                let output_file_path = p.join(APP_ID);
+                if (!output_file_path.exists() && fs::create_dir(&output_file_path).is_ok())
+                    || (output_file_path.exists())
+                {
+                    let output_file = output_file_path.join("recent-files.json");
+                    let _ = fs::write(output_file, s);
+                }
+            }
+        }
+    }
+
+    pub fn add(&mut self, name: impl Into<String>, path: impl AsRef<Path>) {
+        let timestamp_ms = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_millis();
+
+        match self.files.iter().position(|f| f.path == path.as_ref()) {
+            Some(idx) => self.files[idx].ts = timestamp_ms,
+            None => self.files.push(RecentFileItem {
+                name: name.into(),
+                path: path.as_ref().to_path_buf(),
+                ts: timestamp_ms
+            }),
+        }
+
+        self.files.sort_by_key(|f| f.ts);
+        self.files.reverse();
+        self.files.truncate(10);
     }
 }

@@ -1,4 +1,6 @@
 use std::collections::BTreeMap;
+use std::fs;
+use std::path::{Path, PathBuf};
 
 use gpui_fps::fps_monitor;
 use gpui_kit::component::button::{Button, ButtonVariants};
@@ -9,10 +11,10 @@ use gpui_kit::component::*;
 use gpui_kit::prelude::FluentBuilder;
 use gpui_kit::*;
 
-use crate::actions::{AboutAction, NewRelationshipAction, NewSchemaAction, NewTableAction, OpenFileAction, QuitAction, SaveFileAction, SchemaCreatedAction};
+use crate::actions::{AboutAction, FileOpenedAction, FileSavedAction, NewRelationshipAction, NewSchemaAction, NewTableAction, OpenFileAction, QuitAction, SaveFileAction, SchemaCreatedAction};
 use crate::dialect::DialectKind;
 use crate::model::{SchemaDocument, TableSpec};
-use crate::settings::AppSettings;
+use crate::settings::{AppSettings, RecentFiles};
 use crate::view::{EditorView, NewSchemaView, WelcomeView};
 
 #[derive(Debug, PartialEq, Eq)]
@@ -32,6 +34,11 @@ pub struct MainView {
     editor_view: Entity<EditorView>,
     _subscriptions: Vec<Subscription>,
     show_fps: bool,
+
+    // last used path for file dialog
+    last_path: Option<PathBuf>,
+    // the current opened file's path
+    file_path: Option<PathBuf>,
 }
 
 fn gen_test_schema(cx: &mut Context<MainView>) -> Entity<SchemaDocument> {
@@ -92,30 +99,40 @@ impl MainView {
             settings.window_maximized = Some(is_maximum);
         }));
 
-        let test_schema = gen_test_schema(cx);
+        let temp_schema = cx.new(|_| SchemaDocument::new(DialectKind::MySql, "temp", BTreeMap::new()));
+
+        let focus_handle_clone = focus_handle.clone();
+        window.defer(cx, move |window, cx| {
+            if window.focused(cx).is_none() {
+                focus_handle_clone.focus(window, cx);
+            }
+        });
+
         Self {
             focus_handle,
             menubar: AppMenuBar::new(cx),
-            schema: Some(test_schema.clone()),
-            scene: Scene::Editor,
-            welcome_view: cx.new(|_| WelcomeView {}),
+            schema: Some(temp_schema.clone()),
+            scene: Scene::Welcome,
+            welcome_view: cx.new(|_| WelcomeView::new()),
             new_schema_view: cx.new(|cx| NewSchemaView::new(DialectKind::MySql, window, cx)),
             editor_view: cx.new(|cx| {
                 EditorView::new(
-                    test_schema.clone(),
+                    temp_schema.clone(),
                     window,
                     cx,
                 )
             }),
             _subscriptions: subscriptions,
             show_fps: false,
+            last_path: None,
+            file_path: None,
         }
     }
 
     fn on_new_schema_action(
         &mut self,
         _: &NewSchemaAction,
-        _: &mut Window,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) {
         println!("new scheme action received");
@@ -138,6 +155,8 @@ impl MainView {
             self.scene = Scene::Editor;
 
             cx.notify();
+
+            self.focus_handle.focus(window, cx);
         } else {
             window.push_notification((NotificationType::Error, "Parse schema data failed"), cx);
         }
@@ -156,6 +175,75 @@ impl MainView {
             })
         }
     }
+
+    fn on_save_file_action(
+        &mut self,
+        _: &SaveFileAction,
+        window: &mut Window,
+        cx: &mut Context<Self>
+    ) {
+        println!("begin to prompt for saving file");
+        if self.schema.is_none() {
+            return;
+        }
+
+        if self.file_path.is_some() {
+            self.save(self.file_path.as_ref().unwrap().clone(), window, cx);
+        } else {
+            let home_path = dirs::home_dir().unwrap();
+            let path = cx.prompt_for_new_path(
+                self.last_path.as_ref().map(|p| p.as_path()).unwrap_or(home_path.as_path()),
+                Some("Untitled.erj")
+            );
+
+            cx.spawn_in(window, async move |this, cx| {
+                if let Ok(Ok(Some(file))) = path.await {
+                    this.update_in(cx, |this, window, cx| {
+                        this.save(file, window, cx);
+                    }).ok();
+                }
+            }).detach();
+        }
+    }
+
+    fn save(&mut self, file_path: PathBuf, window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(doc) = &self.schema
+            && let Ok(s) = serde_json::to_string(doc.read(cx))
+            && let Ok(_) = fs::write(&file_path, s)
+        {
+            self.file_path = Some(file_path.clone());
+            self.last_path = file_path.parent().map(|p| Some(p.to_path_buf())).unwrap_or(None);
+
+            // save recent files
+            let mut recent_files = RecentFiles::load();
+            recent_files.add(&doc.read(cx).name, &file_path);
+            recent_files.save();
+
+            window.push_notification(
+                (NotificationType::Success, format!("File saved to: {}", file_path.display())),
+                cx
+            );
+        }
+    }
+
+    fn on_file_opened_action(&mut self, action: &FileOpenedAction, window: &mut Window, cx: &mut Context<Self>) {
+        if action.path.exists()
+            && let Ok(s) = fs::read_to_string(&action.path)
+            && let Ok(doc) = serde_json::from_str::<SchemaDocument>(&s)
+        {
+            self.file_path = Some(action.path.clone());
+            self.schema = Some(cx.new(|_| doc));
+            self.scene = Scene::Editor;
+            cx.notify();
+        }
+        else
+        {
+            window.push_notification(
+                (NotificationType::Error, "Open file failed"),
+                cx
+            );
+        }
+    }
 }
 
 impl Render for MainView {
@@ -167,11 +255,13 @@ impl Render for MainView {
             .id("main-view")
             .relative()
             .track_focus(&self.focus_handle)
+            .size_full()
+            .v_flex()
             .on_action(cx.listener(Self::on_new_schema_action))
             .on_action(cx.listener(Self::on_schema_created_action))
             .on_action(cx.listener(Self::on_table_added_action))
-            .size_full()
-            .v_flex()
+            .on_action(cx.listener(Self::on_save_file_action))
+            .on_action(cx.listener(Self::on_file_opened_action))
             .child(
                 TitleBar::new().child(
                     div()
