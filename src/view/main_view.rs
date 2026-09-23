@@ -123,7 +123,8 @@ impl MainView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if let Ok(schema) = serde_json::from_str::<SchemaDocument>(&action.schema_json) {
+        if let Ok(mut schema) = serde_json::from_str::<SchemaDocument>(&action.schema_json) {
+            schema.rebuild_index();
             let ent_schema = cx.new(|_| schema);
             let ent_schema_clone = ent_schema.clone();
 
@@ -149,7 +150,7 @@ impl MainView {
         if let Some(doc) = &self.schema {
             println!("add new table to schema document");
             doc.update(cx, |this, cx| {
-                this.tables.push(TableSpec::new(format!("table_{}", this.tables.len() + 1)));
+                this.add_table(TableSpec::new(format!("table_{}", this.tables().len() + 1)));
                 cx.notify();
             })
         }
@@ -226,8 +227,9 @@ impl MainView {
             && let Ok(s) = fs::read_to_string(&action.path)
             && let Ok(mut doc) = serde_json::from_str::<SchemaDocument>(&s)
         {
+            doc.rebuild_index();
             // force grap redraw
-            doc.tables.iter_mut().for_each(|t| {
+            doc.tables_mut().iter_mut().for_each(|t| {
                 if let Some(g) = &mut t.graph {
                     g.is_dirty = true;
                 }

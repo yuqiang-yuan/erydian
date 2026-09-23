@@ -69,7 +69,7 @@ impl DiagramView {
         let world = self.screen_to_world(screen);
 
         // last added table, first check
-        for (_, table) in self.schema.read(cx).tables.iter().enumerate().rev() {
+        for (_, table) in self.schema.read(cx).tables().iter().enumerate().rev() {
             if let Some(g) = &table.graph
                 && g.rect.contains(crate::model::Point::new(world.x, world.y))
             {
@@ -106,7 +106,7 @@ impl DiagramView {
         match &self.drag {
             DragMode::Table(table_id) => {
                 self.schema.update(cx, |this, cx| {
-                    if let Some(table) = this.tables.iter_mut().find(|t| &t.id == table_id)
+                    if let Some(table) = this.tables_mut().iter_mut().find(|t| &t.id == table_id)
                         && let Some(g) = &mut table.graph
                     {
                         g.rect.left += dx / px(self.scale);
@@ -202,7 +202,7 @@ impl Render for DiagramView {
                         };
 
                         pre_schema.update(cx, |this, _| {
-                            for table in &mut this.tables {
+                            for table in this.tables_mut() {
                                 if table.graph.is_some() && !table.graph.as_ref().unwrap().is_dirty
                                 {
                                     return;
@@ -302,7 +302,7 @@ impl Render for DiagramView {
 
                         let tables = schema
                             .read(cx)
-                            .tables
+                            .tables()
                             .iter()
                             .map(|table| table.clone())
                             .collect::<Vec<_>>();

@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -7,7 +7,7 @@ use crate::dialect::DialectKind;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AttrKind {
-    Text { default: Option<String> },
+    Text { default: Option<String>, multiple_line: bool },
     Select { options: Vec<String> },
     Bool,
 }
@@ -32,7 +32,10 @@ pub struct SchemaDocument {
     pub dialect: DialectKind,
     pub name: String,
     pub schema_attrs: BTreeMap<String, AttrValue>,
-    pub tables: Vec<TableSpec>,
+    tables: Vec<TableSpec>,
+
+    #[serde(skip)]
+    tables_index: HashMap<String, usize>
 }
 
 impl SchemaDocument {
@@ -41,8 +44,50 @@ impl SchemaDocument {
             dialect,
             name: name.into(),
             schema_attrs,
-            tables: vec![]
+            tables: vec![],
+            tables_index: HashMap::new(),
         }
+    }
+
+    pub fn tables(&self) -> &[TableSpec] {
+        &self.tables
+    }
+
+    pub fn tables_mut(&mut self) -> &mut [TableSpec] {
+        &mut self.tables
+    }
+
+    pub fn add_table(&mut self, table: TableSpec) {
+        let i = self.tables.len();
+        self.tables_index.insert(table.id.clone(), i);
+        self.tables.push(table);
+    }
+
+    pub fn remove_table(&mut self, id: &str) -> Option<TableSpec> {
+        let i = self.tables_index.remove(id)?;
+        let table = self.tables.remove(i);
+
+        self.tables_index = self.tables.iter()
+            .enumerate()
+            .map(|(i, t)| (t.id.clone(), i))
+            .collect();
+        Some(table)
+    }
+
+    pub fn get_table(&self, id: &str) -> Option<&TableSpec> {
+        self.tables_index.get(id).and_then(|&i| self.tables.get(i))
+    }
+
+    pub fn get_table_mut(&mut self, id: &str) -> Option<&mut TableSpec> {
+        let i = *self.tables_index.get(id)?;
+        self.tables.get_mut(i)
+    }
+
+    pub fn rebuild_index(&mut self) {
+        self.tables_index = self.tables.iter()
+            .enumerate()
+            .map(|(i, t)| (t.id.clone(), i))
+            .collect();
     }
 }
 

@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use gpui_kit::{
     AppContext, Context, Entity, IntoElement, ParentElement, Render, Styled, Window, base::{Selectable, StyledExt, input::InputState}, component::{
-        ActiveTheme, Icon, WindowExt, button::{Button, ButtonGroup, ButtonVariants}, checkbox::Checkbox, input::Input, notification::NotificationType, select::Select,
+        ActiveTheme, Icon, WindowExt, button::{Button, ButtonGroup, ButtonVariants}, checkbox::Checkbox, input::{Input, Textarea}, notification::NotificationType, select::Select,
     }, div, prelude::FluentBuilder,
 };
 
@@ -130,10 +130,16 @@ impl Render for NewSchemaView {
                                         match state {
                                             AttrState::Text(entity) => {
                                                 Input::new(entity).into_any_element()
-                                            }
+                                            },
+
+                                            AttrState::MultilineText(entity) => {
+                                                Textarea::new(entity).into_any_element()
+                                            },
+
                                             AttrState::Select(entity) => {
                                                 Select::new(entity).into_any_element()
-                                            }
+                                            },
+
                                             AttrState::Bool(b) => Checkbox::new(format!(
                                                 "new-{}-{}",
                                                 self.dialect.name(),

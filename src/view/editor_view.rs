@@ -103,7 +103,7 @@ impl EditorView {
                             .px_2()
                             .child("TABLES"),
                     )
-                    .children(self.schema.read(cx).tables.iter().map(|t| {
+                    .children(self.schema.read(cx).tables().iter().map(|t| {
                         let id_clone = t.id.clone();
                         // let is_selected = self.selected_id.as_ref() == Some(&t.id);
                         div()

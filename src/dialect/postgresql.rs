@@ -14,7 +14,7 @@ impl Dialect for PostgreSqlDialect {
             AttrSpec {
                 key: "owner",
                 label: "Owner",
-                kind: AttrKind::Text { default: None },
+                kind: AttrKind::Text { default: None, multiple_line: false },
                 required: false,
             }
         ]

@@ -77,7 +77,7 @@ impl Render for WelcomeView {
                     )
                     .child(Button::new("open-schema-button").label("Open")),
             )
-            .child(div().when(self.recent_files.files.len() > 0, |_| {
+            .child(div().when(!self.recent_files.files.is_empty(), |_| {
                 div()
                     .w_112()
                     .mt_8()
