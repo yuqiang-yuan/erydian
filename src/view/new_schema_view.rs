@@ -6,7 +6,7 @@ use gpui_kit::{
     }, div, prelude::FluentBuilder,
 };
 
-use crate::{actions::SchemaCreatedAction, dialect::DialectKind, model::SchemaDocument, view::AttrState};
+use crate::{actions::SchemaCreatedAction, dialect::DialectKind, model::SchemaDocument, view::{AttrFieldOptions, AttrState}};
 
 pub struct NewSchemaView {
     dialect: DialectKind,
@@ -116,7 +116,7 @@ impl Render for NewSchemaView {
                                 .v_flex()
                                 .gap_1()
                                 .child(div().pl_2().child(attr_state.attr.label.to_string()))
-                                .child(attr_state.field.render_component(&format!("new-{}-{}", self.dialect.name(), i), cx))
+                                .child(attr_state.field.render_component(Some(AttrFieldOptions::new().id(format!("new-{}-{}", self.dialect.name(), i))), cx))
                                 .into_any_element()
                         })
                     ),

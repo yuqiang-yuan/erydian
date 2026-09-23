@@ -52,6 +52,10 @@ impl MySqlDialect {
         ]
     }
 
+    fn charsets_owned() -> Vec<String> {
+        Self::charsets().iter().map(|s| s.to_string()).collect::<Vec<_>>()
+    }
+
     fn collations() -> &'static [&'static str] {
         &[
             "armscii8_bin",
@@ -258,6 +262,10 @@ impl MySqlDialect {
             "utf8mb4_unicode_520_ci",
         ]
     }
+
+    fn collations_owned() -> Vec<String> {
+        Self::collations().iter().map(|s| s.to_string()).collect::<Vec<_>>()
+    }
 }
 
 impl Dialect for MySqlDialect {
@@ -271,7 +279,7 @@ impl Dialect for MySqlDialect {
                 key: "charset",
                 label: "Character set",
                 kind: AttrKind::Select {
-                    options: MySqlDialect::charsets(),
+                    options: MySqlDialect::charsets_owned(),
                 },
                 required: false,
             },
@@ -279,7 +287,7 @@ impl Dialect for MySqlDialect {
                 key: "collation",
                 label: "Collation",
                 kind: AttrKind::Select {
-                    options: MySqlDialect::collations(),
+                    options: MySqlDialect::collations_owned(),
                 },
                 required: false,
             },
