@@ -127,6 +127,9 @@ impl EditorView {
                             .line_height(relative(1.3))
                             .child(t.name.clone())
                             .on_click(cx.listener(move |this, _, _, cx| {
+                                if this.selected_item.read(cx) == &Some(SelectedItem::Table(id_clone.clone())) {
+                                    return;
+                                }
                                 this.selected_item.update(cx, |id, cx| {
                                     *id = Some(SelectedItem::Table(id_clone.clone()));
                                     cx.notify();

@@ -5,10 +5,10 @@ use uuid::Uuid;
 
 use crate::dialect::DialectKind;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AttrKind {
-    Text { default: Option<String>, multiple_line: bool },
-    Select { options: Vec<String> },
+    Text { default: Option<&'static str>, multiple_line: bool },
+    Select { options: &'static [&'static str] },
     Bool,
 }
 
@@ -18,14 +18,13 @@ pub enum AttrValue {
     Bool(bool),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy)]
 pub struct AttrSpec {
     pub key: &'static str,
     pub label: &'static str,
     pub kind: AttrKind,
     pub required: bool,
 }
-
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct SchemaDocument {

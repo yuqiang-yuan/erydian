@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use gpui_kit::{
     AppContext, Context, Entity, IntoElement, ParentElement, Render, Styled, Window, base::{Selectable, StyledExt, input::InputState}, component::{
-        ActiveTheme, Icon, WindowExt, button::{Button, ButtonGroup, ButtonVariants}, checkbox::Checkbox, input::{Input, Textarea}, notification::NotificationType, select::Select,
+        ActiveTheme, Icon, WindowExt, button::{Button, ButtonGroup, ButtonVariants}, input::Input, notification::NotificationType,
     }, div, prelude::FluentBuilder,
 };
 
@@ -23,17 +23,18 @@ impl NewSchemaView {
             attr_states: dialect
                 .database_attributes()
                 .iter()
-                .map(|a| AttrState::from_kind(&a.kind, window, cx))
+                .map(|a| AttrState::from_attr_spec(a, window, cx))
                 .collect::<Vec<_>>(),
         }
     }
 
+    /// recalculate the states while switching database type
     fn prepare_attr_states(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.attr_states = self
             .dialect
             .database_attributes()
             .iter()
-            .map(|a| AttrState::from_kind(&a.kind, window, cx))
+            .map(|a| AttrState::from_attr_spec(a, window, cx))
             .collect::<Vec<_>>()
     }
 }
@@ -110,54 +111,14 @@ impl Render for NewSchemaView {
                             .child(Input::new(&self.name_state)),
                     )
                     .children(
-                        self.dialect
-                            .database_attributes()
-                            .iter()
-                            .enumerate()
-                            .map(|(i, attr)| {
-                                let opt_state = &self.attr_states.get(i);
-
-                                if opt_state.is_none() {
-                                    println!("can not find state for item: {i}");
-                                    return div().into_any_element();
-                                }
-
-                                div()
-                                    .v_flex()
-                                    .gap_1()
-                                    .child(div().pl_2().child(attr.label.to_string()))
-                                    .child(if let Some(state) = opt_state {
-                                        match state {
-                                            AttrState::Text(entity) => {
-                                                Input::new(entity).into_any_element()
-                                            },
-
-                                            AttrState::MultilineText(entity) => {
-                                                Textarea::new(entity).into_any_element()
-                                            },
-
-                                            AttrState::Select(entity) => {
-                                                Select::new(entity).into_any_element()
-                                            },
-
-                                            AttrState::Bool(b) => Checkbox::new(format!(
-                                                "new-{}-{}",
-                                                self.dialect.name(),
-                                                i
-                                            ))
-                                            .checked(*b)
-                                            .on_click(cx.listener(move |this, v: &bool, _, cx| {
-                                                this.attr_states[i] = AttrState::Bool(*v);
-                                                cx.notify();
-                                            }))
-                                            .into_any_element(),
-                                        }
-                                    } else {
-                                        div().into_any_element()
-                                    })
-                                    .into_any_element()
-                            })
-                            .collect::<Vec<_>>(),
+                        self.attr_states.iter().enumerate().map(|(i, attr_state)| {
+                            div()
+                                .v_flex()
+                                .gap_1()
+                                .child(div().pl_2().child(attr_state.attr.label.to_string()))
+                                .child(attr_state.field.render_component(&format!("new-{}-{}", self.dialect.name(), i), cx))
+                                .into_any_element()
+                        })
                     ),
             )
             .child(
@@ -176,13 +137,9 @@ impl Render for NewSchemaView {
                                     return;
                                 }
 
-                                let db_attrs = this.dialect
-                                    .database_attributes()
+                                let db_attrs = this.attr_states
                                     .iter()
-                                    .zip(&this.attr_states)
-                                    .map(|(a, s)| {
-                                        (a.key.to_string(), s.value(cx))
-                                    })
+                                    .map(|attr_state| attr_state.value_entry(cx))
                                     .collect::<BTreeMap<_, _>>();
 
                                 let doc = SchemaDocument::new(this.dialect, this.name_state.read(cx).value().to_string(), db_attrs);
