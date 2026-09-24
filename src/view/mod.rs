@@ -5,15 +5,26 @@ mod main_view;
 mod new_schema_view;
 mod welcome_view;
 
+use std::collections::BTreeMap;
+
 pub use editor_view::EditorView;
 use gpui_kit::{
-    AnyElement, App, AppContext, Entity, IntoElement, Window, base::input::{InputState, TextareaState}, component::{checkbox::Checkbox, input::{Input, Textarea}, select::{SearchableVec, Select, SelectState}},
+    AnyElement, App, AppContext, Entity, IntoElement, SharedString, Window, base::input::{InputState, TextareaState}, component::{
+        checkbox::Checkbox, input::{Input, Textarea}, select::{SearchableVec, Select, SelectGroup, SelectItem, SelectState},
+    },
 };
 pub use main_view::MainView;
 pub use new_schema_view::NewSchemaView;
 pub use welcome_view::WelcomeView;
 
-use crate::model::{AttrKind, AttrSpec, AttrValue};
+use crate::{
+    dialect::{
+        Dialect,
+        DialectKind::{self},
+        MySqlDialect, PostgreSqlDialect,
+    },
+    model::{AttrKind, AttrSpec, AttrValue, ColumnTypeSpec},
+};
 
 #[derive(Debug, Clone)]
 pub struct AttrState {
@@ -56,7 +67,7 @@ impl AttrFieldOptions {
 pub enum AttrField {
     Text(Entity<InputState>),
     MultilineText(Entity<TextareaState>),
-    Select(Entity<SelectState<SearchableVec<String>>>),
+    Select(Entity<SelectState<SearchableVec<SharedString>>>),
     Bool(Entity<bool>),
 }
 
@@ -78,27 +89,35 @@ impl AttrField {
         match self {
             AttrField::Text(entity) => {
                 if let AttrValue::Text(text) = value {
-                    entity.update(cx, |this, cx| this.set_value(text.unwrap_or(String::new()).to_string(), window, cx));
+                    entity.update(cx, |this, cx| {
+                        this.set_value(text.unwrap_or(String::new()).to_string(), window, cx)
+                    });
                 } else {
                     entity.update(cx, |this, cx| this.set_value(String::new(), window, cx));
                 }
-            },
+            }
 
             AttrField::MultilineText(entity) => {
                 if let AttrValue::Text(text) = value {
-                    entity.update(cx, |this, cx| this.set_value(text.unwrap_or(String::new()).to_string(), window, cx));
+                    entity.update(cx, |this, cx| {
+                        this.set_value(text.unwrap_or(String::new()).to_string(), window, cx)
+                    });
                 } else {
                     entity.update(cx, |this, cx| this.set_value(String::new(), window, cx));
                 }
-            },
+            }
 
             AttrField::Select(entity) => {
                 if let AttrValue::Text(text) = value {
-                    entity.update(cx, |this, cx| this.set_selected_value(&text.unwrap_or(String::new()), window, cx));
+                    entity.update(cx, |this, cx| {
+                        this.set_selected_value(&SharedString::from(text.unwrap_or(String::new())), window, cx)
+                    });
                 } else {
-                    entity.update(cx, |this, cx| this.set_selected_value(&String::new(), window, cx));
+                    entity.update(cx, |this, cx| {
+                        this.set_selected_value(&SharedString::default(), window, cx)
+                    });
                 }
-            },
+            }
 
             AttrField::Bool(entity) => {
                 if let AttrValue::Bool(b) = value {
@@ -114,8 +133,12 @@ impl AttrField {
     pub fn clear_value(&mut self, window: &mut Window, cx: &mut App) {
         match self {
             AttrField::Text(entity) => entity.update(cx, |this, cx| this.set_value("", window, cx)),
-            AttrField::MultilineText(entity) => entity.update(cx, |this, cx| this.set_value("", window, cx)),
-            AttrField::Select(entity) => entity.update(cx, |this, cx| this.set_selected_value(&String::new(), window, cx)),
+            AttrField::MultilineText(entity) => {
+                entity.update(cx, |this, cx| this.set_value("", window, cx))
+            }
+            AttrField::Select(entity) => entity.update(cx, |this, cx| {
+                this.set_selected_value(&SharedString::default(), window, cx)
+            }),
             AttrField::Bool(entity) => entity.update(cx, |this, _| *this = false),
         }
     }
@@ -153,9 +176,11 @@ impl AttrField {
         match self {
             AttrField::Text(entity) => Input::new(entity).into_any_element(),
             AttrField::MultilineText(entity) => Textarea::new(entity).into_any_element(),
-            AttrField::Select(entity) => Select::new(entity).into_any_element(),
+            AttrField::Select(entity) => Select::new(entity).cleanable(true).into_any_element(),
             AttrField::Bool(entity) => {
-                let comp_id = if let Some(opt) = &options && let Some(id) = &opt.id {
+                let comp_id = if let Some(opt) = &options
+                    && let Some(id) = &opt.id
+                {
                     id.clone()
                 } else {
                     "check-box".to_string()
@@ -181,4 +206,43 @@ impl AttrField {
 pub enum SelectedItem {
     Table(String),
     Relationship(String),
+}
+
+/// Simplified data type select
+impl gpui_kit::component::searchable_list::SearchableListItem for ColumnTypeSpec {
+    type Value = Self;
+
+    fn title(&self) -> gpui_kit::SharedString {
+        self.name.into()
+    }
+
+    fn value(&self) -> &Self::Value {
+        self
+    }
+}
+
+// some helper methods related to UI
+impl DialectKind {
+    // build grouped column type data for select state
+    pub fn grouped_column_type_spec(&self) -> SearchableVec<SelectGroup<ColumnTypeSpec>> {
+        let items = match self {
+            DialectKind::MySql => MySqlDialect::column_types(),
+            DialectKind::PostgreSql => PostgreSqlDialect::column_types(),
+        };
+
+        let mut item_map = BTreeMap::<String, Vec<ColumnTypeSpec>>::new();
+        items.into_iter().for_each(|t| {
+            item_map
+                .entry(format!("{}", t.category))
+                .or_default()
+                .push(t)
+        });
+
+        let mut grouped_items = SearchableVec::new(vec![]);
+        item_map.into_iter().for_each(|(category, items)| {
+            grouped_items.push(SelectGroup::new(&category).items(items));
+        });
+
+        grouped_items
+    }
 }

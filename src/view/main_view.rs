@@ -16,7 +16,7 @@ use crate::actions::{
     NewTableAction, OpenFileAction, QuitAction, SaveFileAction, SchemaCreatedAction,
 };
 use crate::dialect::DialectKind;
-use crate::model::{SchemaDocument, TableSpec};
+use crate::model::{SchemaDocument, Table};
 use crate::settings::{AppSettings, RecentFiles};
 use crate::view::{EditorView, NewSchemaView, WelcomeView};
 
@@ -96,7 +96,7 @@ impl MainView {
             menubar: AppMenuBar::new(cx),
             schema: Some(temp_schema.clone()),
             scene: Scene::Welcome,
-            welcome_view: cx.new(|_| WelcomeView::new()),
+            welcome_view: cx.new(|cx| WelcomeView::new(window, cx)),
             new_schema_view: cx.new(|cx| NewSchemaView::new(DialectKind::MySql, window, cx)),
             editor_view: None,
             _subscriptions: subscriptions,
@@ -150,7 +150,12 @@ impl MainView {
         if let Some(doc) = &self.schema {
             println!("add new table to schema document");
             doc.update(cx, |this, cx| {
-                this.add_table(TableSpec::new(format!("table_{}", this.tables().len() + 1)));
+                let mut table = Table::new(format!("table_{}", this.tables().len() + 1));
+                if let Some(pk_col) = this.dialect.default_pk_column() {
+                    table.add_column(pk_col);
+                }
+
+                this.add_table(table);
                 cx.notify();
             })
         }

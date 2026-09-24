@@ -23,4 +23,8 @@ impl Dialect for PostgreSqlDialect {
     fn table_attributes() -> Vec<AttrSpec> {
         vec![]
     }
+
+    fn column_types() -> Vec<crate::model::ColumnTypeSpec> {
+        vec![]
+    }
 }

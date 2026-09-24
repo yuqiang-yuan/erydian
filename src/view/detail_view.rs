@@ -143,10 +143,10 @@ impl TablePanel {
                     }
                 }),
 
-                AttrField::Select(entity) => cx.subscribe_in(entity, window, |this, _, event: &SelectEvent<SearchableVec<String>>, window, cx| {
+                AttrField::Select(entity) => cx.subscribe_in(entity, window, |this, _, event: &SelectEvent<SearchableVec<SharedString>>, window, cx| {
                     match event {
                         SelectEvent::Confirm(v) => {
-                            this.update_attr_value(attr_state.attr.key, AttrValue::Text(v.clone()), window, cx);
+                            this.update_attr_value(attr_state.attr.key, AttrValue::Text(v.clone().map(|s| s.to_string())), window, cx);
                         },
                     }
                 }),

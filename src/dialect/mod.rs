@@ -1,4 +1,4 @@
-use crate::{model::AttrSpec};
+use crate::model::{AttrSpec, Column, ColumnTypeSpec};
 
 mod mysql;
 mod postgresql;
@@ -8,9 +8,29 @@ pub use postgresql::PostgreSqlDialect;
 use serde::{Deserialize, Serialize};
 
 pub trait Dialect {
+    /// The database name
     fn name() -> &'static str;
-    fn database_attributes() -> Vec<AttrSpec>;
-    fn table_attributes() -> Vec<AttrSpec>;
+
+    /// Additional attributes spec
+    fn database_attributes() -> Vec<AttrSpec> {
+        vec![]
+    }
+
+    /// Additional attributes spec
+    fn table_attributes() -> Vec<AttrSpec> {
+        vec![]
+    }
+
+    /// Supported column data type specs
+    fn column_types() -> Vec<ColumnTypeSpec> {
+        vec![]
+    }
+
+    /// Default pk column when creating a new table
+    /// `None` means leave to user to add pk column
+    fn default_pk_column() -> Option<Column> {
+        None
+    }
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -50,6 +70,20 @@ impl DialectKind {
         match self {
             Self::MySql => MySqlDialect::table_attributes(),
             Self::PostgreSql => PostgreSqlDialect::table_attributes(),
+        }
+    }
+
+    pub fn column_types(&self) -> Vec<ColumnTypeSpec> {
+        match self {
+            Self::MySql => MySqlDialect::column_types(),
+            Self::PostgreSql => PostgreSqlDialect::column_types(),
+        }
+    }
+
+    pub fn default_pk_column(&self) -> Option<Column> {
+        match self {
+            Self::MySql => MySqlDialect::default_pk_column(),
+            Self::PostgreSql => PostgreSqlDialect::default_pk_column(),
         }
     }
 }

@@ -1,6 +1,7 @@
+use gpui_kit::SharedString;
+
 use crate::{
-    dialect::Dialect,
-    model::{AttrKind, AttrSpec},
+    dialect::Dialect, model::{AttrKind, AttrSpec, Column, ColumnType, ColumnTypeCategory, ColumnTypeParam, ColumnTypeSpec},
 };
 
 pub struct MySqlDialect {}
@@ -8,52 +9,19 @@ pub struct MySqlDialect {}
 impl MySqlDialect {
     fn charsets() -> &'static [&'static str] {
         &[
-            "armscii8",
-            "ascii",
-            "big5",
-            "binary",
-            "cp1250",
-            "cp1251",
-            "cp1256",
-            "cp1257",
-            "cp850",
-            "cp852",
-            "cp866",
-            "cp932",
-            "dec8",
-            "eucjpms",
-            "euckr",
-            "gb18030",
-            "gb2312",
-            "gbk",
-            "geostd8",
-            "greek",
-            "hebrew",
-            "hp8",
-            "keybcs2",
-            "koi8r",
-            "koi8u",
-            "latin1",
-            "latin2",
-            "latin5",
-            "latin7",
-            "macce",
-            "macroman",
-            "sjis",
-            "swe7",
-            "tis620",
-            "ucs2",
-            "ujis",
-            "utf16",
-            "utf16le",
-            "utf32",
-            "utf8mb3",
-            "utf8mb4",
+            "armscii8", "ascii", "big5", "binary", "cp1250", "cp1251", "cp1256", "cp1257", "cp850",
+            "cp852", "cp866", "cp932", "dec8", "eucjpms", "euckr", "gb18030", "gb2312", "gbk",
+            "geostd8", "greek", "hebrew", "hp8", "keybcs2", "koi8r", "koi8u", "latin1", "latin2",
+            "latin5", "latin7", "macce", "macroman", "sjis", "swe7", "tis620", "ucs2", "ujis",
+            "utf16", "utf16le", "utf32", "utf8mb3", "utf8mb4",
         ]
     }
 
-    fn charsets_owned() -> Vec<String> {
-        Self::charsets().iter().map(|s| s.to_string()).collect::<Vec<_>>()
+    fn charsets_owned() -> Vec<SharedString> {
+        Self::charsets()
+            .iter()
+            .map(|s| SharedString::new_static(*s))
+            .collect::<Vec<_>>()
     }
 
     fn collations() -> &'static [&'static str] {
@@ -263,8 +231,11 @@ impl MySqlDialect {
         ]
     }
 
-    fn collations_owned() -> Vec<String> {
-        Self::collations().iter().map(|s| s.to_string()).collect::<Vec<_>>()
+    fn collations_owned() -> Vec<SharedString> {
+        Self::collations()
+            .iter()
+            .map(|s| SharedString::from(*s))
+            .collect::<Vec<_>>()
     }
 }
 
@@ -307,5 +278,85 @@ impl Dialect for MySqlDialect {
         });
 
         items
+    }
+
+    fn column_types() -> Vec<ColumnTypeSpec> {
+        use ColumnTypeCategory::{DateTime, Number, Spatial, String};
+
+        vec![
+            // ---------- 整数（8.x 里只有整数类型支持 AUTO_INCREMENT） ----------
+            ColumnTypeSpec { name: "TINYINT",   category: Number, params: &[ColumnTypeParam::Unsigned], supports_auto_increment: true  },
+            ColumnTypeSpec { name: "SMALLINT",  category: Number, params: &[ColumnTypeParam::Unsigned], supports_auto_increment: true  },
+            ColumnTypeSpec { name: "MEDIUMINT", category: Number, params: &[ColumnTypeParam::Unsigned], supports_auto_increment: true  },
+            ColumnTypeSpec { name: "INT",   category: Number, params: &[ColumnTypeParam::Unsigned], supports_auto_increment: true  },
+            ColumnTypeSpec { name: "BIGINT",    category: Number, params: &[ColumnTypeParam::Unsigned], supports_auto_increment: true  },
+
+            // ---------- 布尔（其实是 TINYINT(1) 的别名） ----------
+            ColumnTypeSpec { name: "BOOL",      category: Number, params: &[], supports_auto_increment: false },
+
+            // ---------- 定点 / 浮点 ----------
+            ColumnTypeSpec { name: "DECIMAL",   category: Number, params: &[ColumnTypeParam::Precision, ColumnTypeParam::Scale], supports_auto_increment: false },
+            ColumnTypeSpec { name: "FLOAT",     category: Number, params: &[ColumnTypeParam::Precision], supports_auto_increment: false },
+            ColumnTypeSpec { name: "DOUBLE",    category: Number, params: &[ColumnTypeParam::Precision], supports_auto_increment: false },
+            ColumnTypeSpec { name: "REAL",      category: Number, params: &[ColumnTypeParam::Precision, ColumnTypeParam::Scale], supports_auto_increment: false },
+
+            // ---------- 位类型 ----------
+            ColumnTypeSpec { name: "BIT",       category: Number, params: &[ColumnTypeParam::Length], supports_auto_increment: false },
+
+            // ---------- 日期时间 ----------
+            ColumnTypeSpec { name: "DATE",      category: DateTime, params: &[], supports_auto_increment: false },
+            ColumnTypeSpec { name: "DATETIME",  category: DateTime, params: &[ColumnTypeParam::Precision], supports_auto_increment: false },
+            ColumnTypeSpec { name: "TIMESTAMP", category: DateTime, params: &[ColumnTypeParam::Precision], supports_auto_increment: false },
+            ColumnTypeSpec { name: "TIME",      category: DateTime, params: &[ColumnTypeParam::Precision], supports_auto_increment: false },
+            ColumnTypeSpec { name: "YEAR",      category: DateTime, params: &[], supports_auto_increment: false },
+
+            // ---------- 字符串 / 二进制 ----------
+            ColumnTypeSpec { name: "CHAR",      category: String, params: &[ColumnTypeParam::Length], supports_auto_increment: false },
+            ColumnTypeSpec { name: "VARCHAR",   category: String, params: &[ColumnTypeParam::Length], supports_auto_increment: false },
+            ColumnTypeSpec { name: "BINARY",    category: String, params: &[ColumnTypeParam::Length], supports_auto_increment: false },
+            ColumnTypeSpec { name: "VARBINARY", category: String, params: &[ColumnTypeParam::Length], supports_auto_increment: false },
+
+            ColumnTypeSpec { name: "TINYTEXT",   category: String, params: &[], supports_auto_increment: false },
+            ColumnTypeSpec { name: "TEXT",       category: String, params: &[], supports_auto_increment: false },
+            ColumnTypeSpec { name: "MEDIUMTEXT", category: String, params: &[], supports_auto_increment: false },
+            ColumnTypeSpec { name: "LONGTEXT",   category: String, params: &[], supports_auto_increment: false },
+
+            ColumnTypeSpec { name: "TINYBLOB",   category: String, params: &[], supports_auto_increment: false },
+            ColumnTypeSpec { name: "BLOB",       category: String, params: &[], supports_auto_increment: false },
+            ColumnTypeSpec { name: "MEDIUMBLOB", category: String, params: &[], supports_auto_increment: false },
+            ColumnTypeSpec { name: "LONGBLOB",   category: String, params: &[], supports_auto_increment: false },
+
+            ColumnTypeSpec { name: "ENUM",      category: String, params: &[ColumnTypeParam::EnumValues], supports_auto_increment: false },
+            ColumnTypeSpec { name: "SET",       category: String, params: &[ColumnTypeParam::EnumValues], supports_auto_increment: false },
+
+            // 你现有 category 里没有 Json，暂时归到 String
+            ColumnTypeSpec { name: "JSON",      category: String, params: &[], supports_auto_increment: false },
+
+            // ---------- 空间类型 ----------
+            ColumnTypeSpec { name: "GEOMETRY",           category: Spatial, params: &[], supports_auto_increment: false },
+            ColumnTypeSpec { name: "POINT",              category: Spatial, params: &[], supports_auto_increment: false },
+            ColumnTypeSpec { name: "LINESTRING",         category: Spatial, params: &[], supports_auto_increment: false },
+            ColumnTypeSpec { name: "POLYGON",            category: Spatial, params: &[], supports_auto_increment: false },
+            ColumnTypeSpec { name: "MULTIPOINT",         category: Spatial, params: &[], supports_auto_increment: false },
+            ColumnTypeSpec { name: "MULTILINESTRING",    category: Spatial, params: &[], supports_auto_increment: false },
+            ColumnTypeSpec { name: "MULTIPOLYGON",       category: Spatial, params: &[], supports_auto_increment: false },
+            ColumnTypeSpec { name: "GEOMETRYCOLLECTION", category: Spatial, params: &[], supports_auto_increment: false },
+            ColumnTypeSpec { name: "GEOMCOLLECTION",     category: Spatial, params: &[], supports_auto_increment: false },
+        ]
+    }
+
+    fn default_pk_column() -> Option<Column> {
+        Some(Column {
+            column_type: ColumnType {
+                name: "INT".into(),
+                length: None,
+                precision: None,
+                scale: None,
+                unsigned: false,
+                values: None,
+            },
+            auto_increment: true,
+            ..Column::new("id")
+        })
     }
 }

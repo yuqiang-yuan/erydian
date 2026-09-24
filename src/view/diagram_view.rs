@@ -179,9 +179,9 @@ impl Render for DiagramView {
         let table_name_bg_color = cx.theme().list_active_border;
         let table_name_color = hsla(0.0, 0.0, 1.0, 1.0);
         let border_color = cx.theme().border;
-        let font_size = cx.theme().font_size;
+        let font_size = cx.theme().mono_font_size;
 
-        let padding_y = 8.0f32;
+        let padding_y = font_size.as_f32();
         let padding_x = 12.0f32;
 
         div()
@@ -205,7 +205,7 @@ impl Render for DiagramView {
                             for table in this.tables_mut() {
                                 if table.graph.is_some() && !table.graph.as_ref().unwrap().is_dirty
                                 {
-                                    return;
+                                    continue;
                                 }
 
                                 let old_origin = if let Some(g) = &table.graph {
@@ -233,9 +233,9 @@ impl Render for DiagramView {
                                 // 先按照字符的数量来算最大宽度。这个在等宽字体下是成立的。
                                 // 但是如果未来允许用户自行设置字体的话，就需要真实的测量每个列的宽度之后再决定哪个是最宽的
                                 let col_width =
-                                    match table.columns.iter().map(|c| c.name.len()).max() {
+                                    match table.columns().iter().map(|c| c.name.len()).max() {
                                         Some(u) => table
-                                            .columns
+                                            .columns()
                                             .iter()
                                             .find(|c| c.name.len() == u)
                                             .map(|c| {
@@ -265,8 +265,8 @@ impl Render for DiagramView {
                                     col_width
                                 } + padding_x * 2.0;
 
-                                let height = (table.columns.len() + 1) as f32
-                                    * (font_size.as_f32() + padding_y * 2.0)
+                                let height = (table.columns().len() + 1) as f32
+                                    * (font_size.as_f32() + padding_y)
                                     + padding_y * 2.0;
 
                                 table.graph = Some(TableGraph {
@@ -350,7 +350,7 @@ impl Render for DiagramView {
                                     origin: top_left,
                                     size: size(
                                         px(graph.rect.width * scale),
-                                        px(scaled_font_size.as_f32() + scaled_padding_y * 3.0),
+                                        px(scaled_font_size.as_f32() + scaled_padding_y * 2.0),
                                     ),
                                 },
                                 corner_radii: Corners {
@@ -386,7 +386,7 @@ impl Render for DiagramView {
                             );
 
                             let _ = shaped.paint(
-                                top_left + point(px(scaled_padding_x), px(scaled_padding_y * 1.5)), // the table rect has padding
+                                top_left + point(px(scaled_padding_x), px(scaled_padding_y)), // the table rect has padding
                                 scaled_font_size,
                                 TextAlign::Left,
                                 None,
@@ -395,7 +395,7 @@ impl Render for DiagramView {
                             );
 
                             // column names
-                            for (i, col) in table.columns.iter().enumerate() {
+                            for (i, col) in table.columns().iter().enumerate() {
                                 let runs = vec![TextRun {
                                     len: col.name.len(),
                                     font: font.clone(),
@@ -414,10 +414,10 @@ impl Render for DiagramView {
                                     top_left
                                         + point(
                                             px(scaled_padding_x),
-                                            px((i + 1) as f32
-                                                * (scaled_font_size.as_f32()
-                                                    + scaled_padding_y * 2.0)
-                                                + scaled_padding_y * 2.0),
+                                            px(
+                                                (scaled_font_size.as_f32() + scaled_padding_y) * (i + 1) as f32
+                                                + scaled_padding_y * 2.0
+                                            ),
                                         ),
                                     font_size * scale,
                                     TextAlign::Left,

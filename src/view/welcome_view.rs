@@ -1,7 +1,6 @@
 use gpui_kit::{
     Context, InteractiveElement, IntoElement, ParentElement, Render, StatefulInteractiveElement, Styled, Window, base::StyledExt, component::{
-        ActiveTheme,
-        button::{Button, ButtonVariants},
+        ActiveTheme, button::{Button, ButtonVariants},
     }, div, prelude::FluentBuilder,
 };
 
@@ -12,7 +11,7 @@ pub struct WelcomeView {
 }
 
 impl WelcomeView {
-    pub fn new() -> Self {
+    pub fn new(_: &mut Window, _: &mut Context<Self>) -> Self {
         Self {
             recent_files: RecentFiles::load(),
         }
