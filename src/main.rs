@@ -95,11 +95,11 @@ fn main() {
                     ..TitleBar::window_options()
                 };
 
-                cx.open_window(options, |window, cx| {
-                    let main_view = cx.new(|cx| MainView::new(window, cx));
-                    cx.new(|cx| Root::new(main_view, window, cx))
-                })
-                .expect("Launch application failed");
+                let (_, _) =
+                    gpui_kit::open_window(options, cx, |window, cx| {
+                        cx.new(|cx| MainView::new(window, cx))
+                    })
+                    .expect("Launch application failed");
 
                 cx.activate(true);
             });

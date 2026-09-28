@@ -254,8 +254,10 @@ impl MainView {
 
 impl Render for MainView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let dialog_layer = Root::render_dialog_layer(window, cx);
-        let notification_layer = Root::render_notification_layer(window, cx);
+        // let dialog_layer = Root::render_dialog_layer(window, cx);
+        // let notification_layer = Root::render_notification_layer(window, cx);
+
+
 
         div()
             .id("main-view")
@@ -294,8 +296,6 @@ impl Render for MainView {
                 this.child(StatusBar::new().left("Ready"))
             })
             .when(self.show_fps, |this| this.child(fps_monitor(window, cx)))
-            .children(dialog_layer)
-            .children(notification_layer)
     }
 }
 
