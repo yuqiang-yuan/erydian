@@ -1,5 +1,5 @@
 use gpui_kit::base::StyledExt;
-use gpui_kit::base::input::{InputEvent, InputState};
+use gpui_kit::base::input::{InputEvent, InputState, TextareaState};
 use gpui_kit::component::input::Input;
 use gpui_kit::component::scroll::ScrollableElement;
 use gpui_kit::component::select::{SearchableVec, Select, SelectGroup, SelectState};
@@ -91,6 +91,13 @@ impl Render for TableDetailView {
                     }),
             )
     }
+}
+
+pub struct TableSqlPanel {
+    schema: Entity<SchemaDocument>,
+    selected_item: Entity<Option<SelectedItem>>,
+    sql_state: Entity<TextareaState>,
+    _subscriptions: Vec<Subscription>,
 }
 
 /// Panel to show table's attributes
