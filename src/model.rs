@@ -237,12 +237,12 @@ impl Table {
 }
 
 /// date type categories, for grouping dropdown select or combo
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ColumnTypeCategory {
-    Number,
-    String,
-    DateTime,
-    Spatial,
+    Number = 0,
+    String = 1,
+    DateTime = 2,
+    Spatial = 3,
 }
 
 impl Display for ColumnTypeCategory {
@@ -282,7 +282,6 @@ pub struct ColumnType {
     pub unsigned: bool,
     pub values: Option<Vec<String>>,
 }
-
 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -22,8 +22,7 @@ use crate::{
         Dialect,
         DialectKind::{self},
         MySqlDialect, PostgreSqlDialect,
-    },
-    model::{AttrKind, AttrSpec, AttrValue, ColumnTypeSpec},
+    }, model::{AttrKind, AttrSpec, AttrValue, ColumnTypeCategory, ColumnTypeSpec},
 };
 
 #[derive(Debug, Clone)]
@@ -230,17 +229,22 @@ impl DialectKind {
             DialectKind::PostgreSql => PostgreSqlDialect::column_types(),
         };
 
-        let mut item_map = BTreeMap::<String, Vec<ColumnTypeSpec>>::new();
+        let mut item_map = BTreeMap::<ColumnTypeCategory, Vec<ColumnTypeSpec>>::new();
+        // item_map.insert(format!("{}", ColumnTypeCategory::Number), vec![]);
+        // item_map.insert(format!("{}", ColumnTypeCategory::String), vec![]);
+        // item_map.insert(format!("{}", ColumnTypeCategory::DateTime), vec![]);
+        // item_map.insert(format!("{}", ColumnTypeCategory::Spatial), vec![]);
+
         items.into_iter().for_each(|t| {
             item_map
-                .entry(format!("{}", t.category))
+                .entry(t.category)
                 .or_default()
                 .push(t)
         });
 
         let mut grouped_items = SearchableVec::new(vec![]);
         item_map.into_iter().for_each(|(category, items)| {
-            grouped_items.push(SelectGroup::new(&category).items(items));
+            grouped_items.push(SelectGroup::new(format!("{}", category)).items(items));
         });
 
         grouped_items

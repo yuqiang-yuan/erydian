@@ -2,23 +2,31 @@ use gpui_kit::base::StyledExt;
 use gpui_kit::base::input::{InputEvent, InputState};
 use gpui_kit::component::input::Input;
 use gpui_kit::component::scroll::ScrollableElement;
-use gpui_kit::component::select::{SearchableVec};
+use gpui_kit::component::select::{SearchableVec, Select, SelectGroup, SelectState};
 use gpui_kit::component::select::SelectEvent;
-use gpui_kit::component::tab::*;
+use gpui_kit::component::{ChildElement, Size, Sizable, tab::*};
+use gpui_kit::component::table::{Table, TableBody, TableCell, TableHead, TableHeader, TableRow};
 use gpui_kit::prelude::*;
 use gpui_kit::*;
 
-use crate::model::{AttrValue, SchemaDocument};
+use crate::model::{AttrValue, ColumnTypeSpec, SchemaDocument};
 use crate::view::{AttrField, AttrFieldOptions, AttrState, SelectedItem};
 
 const TAB_TABLE: usize = 0;
 const TAB_COLUMNS: usize = 1;
+
+const COL_WIDTHS: [Pixels; 3] = [
+    px(60.0),
+    px(150.0),
+    px(150.0),
+];
 
 pub struct TableDetailView {
     schema: Entity<SchemaDocument>,
     selected_item: Entity<Option<SelectedItem>>,
     selected_tab_index: usize,
     table_panel: Entity<TablePanel>,
+    columns_panel: Entity<ColumnsPanel>,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -42,6 +50,7 @@ impl TableDetailView {
             selected_item: si.clone(),
             selected_tab_index: TAB_TABLE,
             table_panel: cx.new(|cx| TablePanel::new(schema.clone(), si.clone(), window, cx)),
+            columns_panel: cx.new(|cx| ColumnsPanel::new(schema.clone(), si.clone(), window, cx)),
             _subscriptions: vec![si_sub],
         }
     }
@@ -65,7 +74,17 @@ impl Render for TableDetailView {
                     .child(Tab::new().label("Columns"))
                     .child(Tab::new().label("Indexes")),
             )
-            .child(div().min_h_0().flex_grow_1().child(self.table_panel.clone()))
+            .child(
+                div()
+                    .min_h_0()
+                    .flex_grow_1()
+                    .when(self.selected_tab_index == TAB_TABLE, |this| {
+                        this.child(self.table_panel.clone())
+                    })
+                    .when(self.selected_tab_index == TAB_COLUMNS, |this| {
+                        this.child(self.columns_panel.clone())
+                    }),
+            )
     }
 }
 
@@ -123,37 +142,69 @@ impl TablePanel {
 
         let attr_subs = attr_states.iter().map(|attr_state| {
             match &attr_state.field {
-                AttrField::Text(entity) => cx.subscribe_in(entity, window, |this, state, event: &InputEvent, window, cx| {
-                    match event {
-                        InputEvent::PressEnter { .. } | InputEvent::Blur => {
-                            let s = state.read(cx).value().trim().to_string(); // 先 clone 成 String
-                            this.update_attr_value(attr_state.attr.key, AttrValue::Text(Some(s)), window, cx);
+                AttrField::Text(entity) => cx.subscribe_in(
+                    entity,
+                    window,
+                    |this, state, event: &InputEvent, window, cx| {
+                        match event {
+                            InputEvent::PressEnter { .. } | InputEvent::Blur => {
+                                let s = state.read(cx).value().trim().to_string(); // 先 clone 成 String
+                                this.update_attr_value(
+                                    attr_state.attr.key,
+                                    AttrValue::Text(Some(s)),
+                                    window,
+                                    cx,
+                                );
+                            }
+                            _ => {}
                         }
-                        _ => {}
-                    }
-                }),
+                    },
+                ),
 
-                AttrField::MultilineText(entity) => cx.subscribe_in(entity, window, |this, state, event: &InputEvent, window, cx| {
-                    match event {
+                AttrField::MultilineText(entity) => cx.subscribe_in(
+                    entity,
+                    window,
+                    |this, state, event: &InputEvent, window, cx| match event {
                         InputEvent::PressEnter { .. } | InputEvent::Blur => {
                             let s = state.read(cx).value().trim().to_string();
-                            this.update_attr_value(attr_state.attr.key, AttrValue::Text(Some(s)), window, cx);
+                            this.update_attr_value(
+                                attr_state.attr.key,
+                                AttrValue::Text(Some(s)),
+                                window,
+                                cx,
+                            );
                         }
                         _ => {}
-                    }
-                }),
+                    },
+                ),
 
-                AttrField::Select(entity) => cx.subscribe_in(entity, window, |this, _, event: &SelectEvent<SearchableVec<SharedString>>, window, cx| {
-                    match event {
-                        SelectEvent::Confirm(v) => {
-                            this.update_attr_value(attr_state.attr.key, AttrValue::Text(v.clone().map(|s| s.to_string())), window, cx);
-                        },
-                    }
-                }),
+                AttrField::Select(entity) => cx.subscribe_in(
+                    entity,
+                    window,
+                    |this, _, event: &SelectEvent<SearchableVec<SharedString>>, window, cx| {
+                        match event {
+                            SelectEvent::Confirm(v) => {
+                                this.update_attr_value(
+                                    attr_state.attr.key,
+                                    AttrValue::Text(v.clone().map(|s| s.to_string())),
+                                    window,
+                                    cx,
+                                );
+                            }
+                        }
+                    },
+                ),
 
-                AttrField::Bool(entity) => cx.observe_in(entity, window, |this, ent, window, cx| {
-                    this.update_attr_value(attr_state.attr.key, AttrValue::Bool(*ent.read(cx)), window, cx);
-                }),
+                AttrField::Bool(entity) => {
+                    cx.observe_in(entity, window, |this, ent, window, cx| {
+                        this.update_attr_value(
+                            attr_state.attr.key,
+                            AttrValue::Bool(*ent.read(cx)),
+                            window,
+                            cx,
+                        );
+                    })
+                }
             }
         });
 
@@ -244,7 +295,10 @@ impl TablePanel {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        println!("table attribute {} will be updated to {:?}", attr_key, attr_value);
+        println!(
+            "table attribute {} will be updated to {:?}",
+            attr_key, attr_value
+        );
         let tid = if let Some(SelectedItem::Table(s)) = self.selected_item.read(cx) {
             Some(s.to_string())
         } else {
@@ -287,20 +341,170 @@ impl Render for TablePanel {
                     .child(Input::new(&self.name_state)),
             )
             .child(
-                div().children(
-                    self.attr_states
-                        .iter()
-                        .enumerate()
-                        .map(|(i, attr_state)| {
+                div().children(self.attr_states.iter().enumerate().map(|(i, attr_state)| {
+                    div()
+                        .mt_4()
+                        .h_flex()
+                        .gap_2()
+                        .items_center()
+                        .child(
                             div()
-                                .mt_4()
-                                .h_flex()
-                                .gap_2()
-                                .items_center()
-                                .child(div().w_40().text_right().text_sm().child(attr_state.attr.label.to_string()))
-                                .child(attr_state.field.render_component(Some(AttrFieldOptions::new().id(format!("table-detail-{i}"))), cx))
-                        }),
+                                .w_40()
+                                .text_right()
+                                .text_sm()
+                                .child(attr_state.attr.label.to_string()),
+                        )
+                        .child(attr_state.field.render_component(
+                            Some(AttrFieldOptions::new().id(format!("table-detail-{i}"))),
+                            cx,
+                        ))
+                })),
+            )
+    }
+}
+
+/// 把任意元素适配成 Table 系列能接受的子元素
+#[derive(IntoElement)]
+pub struct TableChild {
+    element: AnyElement,
+}
+
+impl TableChild {
+    pub fn new(element: impl IntoElement) -> Self {
+        Self { element: element.into_any_element() }
+    }
+}
+
+impl Sizable for TableChild {
+    fn with_size(mut self, _: impl Into<Size>) -> Self {
+        self
+    }
+}
+
+impl ChildElement for TableChild {
+    fn with_ix(mut self, _: usize) -> Self {
+        self
+    }
+}
+
+impl RenderOnce for TableChild {
+    fn render(self, _: &mut Window, _: &mut App) -> impl IntoElement {
+        self.element
+    }
+}
+
+pub struct ColumnsPanel {
+    schema: Entity<SchemaDocument>,
+    selected_item: Entity<Option<SelectedItem>>,
+    column_rows: Vec<Entity<ColumnRow>>,
+}
+
+impl ColumnsPanel {
+    pub fn new(
+        schema: Entity<SchemaDocument>,
+        selected_item: Entity<Option<SelectedItem>>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
+        let columns = if let Some(SelectedItem::Table(tid)) = &selected_item.read(cx)
+            && let Some(t) = schema.read(cx).get_table(tid)
+        {
+            t.columns().iter().map(|c| c.clone()).collect::<Vec<_>>()
+        } else {
+            vec![]
+        };
+
+        let column_rows = columns
+            .into_iter()
+            .enumerate()
+            .map(|(i, c)| {
+                cx.new(|cx| {
+                    ColumnRow::new(schema.clone(), selected_item.clone(), i, &c.id, window, cx)
+                })
+            })
+            .collect::<Vec<_>>();
+
+        Self {
+            schema,
+            selected_item,
+            column_rows,
+        }
+    }
+}
+
+impl Render for ColumnsPanel {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        Table::new()
+            .child(
+                TableHeader::new().child(
+                    TableRow::new()
+                        .child(TableHead::new().min_w(COL_WIDTHS[0]).w(COL_WIDTHS[0]).child("#"))
+                        .child(TableHead::new().min_w(COL_WIDTHS[1]).w(COL_WIDTHS[1]).child("Name"))
+                        .child(TableHead::new().child("Type")),
                 ),
             )
+            .child(TableBody::new().children(self.column_rows.iter().map(|c| TableChild::new(c.clone()))))
+    }
+}
+
+/// UI components for a single column
+pub struct ColumnRow {
+    schema: Entity<SchemaDocument>,
+    selected_item: Entity<Option<SelectedItem>>,
+    idx: usize,
+    column_id: SharedString,
+    name_state: Entity<InputState>,
+    type_state: Entity<SelectState<SearchableVec<SelectGroup<ColumnTypeSpec>>>>,
+}
+
+impl ColumnRow {
+    pub fn new(
+        schema: Entity<SchemaDocument>,
+        selected_item: Entity<Option<SelectedItem>>,
+        idx: usize,
+        column_id: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
+        let name_state = cx.new(|cx| InputState::new(window, cx));
+        let type_state = cx.new(|cx| {
+            let items = schema.read(cx).dialect.grouped_column_type_spec();
+            SelectState::new(items, None, window, cx)
+        });
+
+        let mut this = Self {
+            schema,
+            selected_item,
+            idx,
+            column_id: SharedString::from(column_id),
+            name_state,
+            type_state,
+        };
+
+        this.load_data(window, cx);
+
+        this
+    }
+
+    fn load_data(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let col = if let Some(SelectedItem::Table(tid)) = &self.selected_item.read(cx)
+            && let Some(t) = self.schema.read(cx).get_table(tid)
+            && let Some(c) = t.get_column(&self.column_id.to_string()) {
+            Some(c.clone())
+        } else {
+            None
+        };
+
+        self.name_state.update(cx, |state, cx| state.set_value(SharedString::new(col.as_ref().map(|c| c.name.as_str()).unwrap_or("")), window, cx));
+
+    }
+}
+
+impl Render for ColumnRow {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        TableRow::new()
+            .child(TableCell::new().min_w(COL_WIDTHS[0]).w(COL_WIDTHS[0]).child(format!("{}", self.idx + 1)))
+            .child(TableCell::new().min_w(COL_WIDTHS[1]).w(COL_WIDTHS[1]).child(Input::new(&self.name_state)))
+            .child(TableCell::new().child(Select::new(&self.type_state)))
     }
 }

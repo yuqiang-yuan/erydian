@@ -234,7 +234,7 @@ impl MySqlDialect {
     fn collations_owned() -> Vec<SharedString> {
         Self::collations()
             .iter()
-            .map(|s| SharedString::from(*s))
+            .map(|s| SharedString::new_static(*s))
             .collect::<Vec<_>>()
     }
 }
@@ -356,6 +356,7 @@ impl Dialect for MySqlDialect {
                 values: None,
             },
             auto_increment: true,
+            nullable: false,
             ..Column::new("id")
         })
     }
