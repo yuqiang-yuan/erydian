@@ -15,10 +15,15 @@ use crate::view::{AttrField, AttrFieldOptions, AttrState, SelectedItem};
 const TAB_TABLE: usize = 0;
 const TAB_COLUMNS: usize = 1;
 
-const COL_WIDTHS: [Pixels; 3] = [
+const COL_WIDTHS: &[Pixels] = &[
     px(60.0),
     px(150.0),
     px(150.0),
+    px(80.0),
+    px(80.0),
+    px(80.0),
+    px(80.0),
+    px(80.0),
 ];
 
 pub struct TableDetailView {
@@ -440,7 +445,12 @@ impl Render for ColumnsPanel {
                     TableRow::new()
                         .child(TableHead::new().min_w(COL_WIDTHS[0]).w(COL_WIDTHS[0]).child("#"))
                         .child(TableHead::new().min_w(COL_WIDTHS[1]).w(COL_WIDTHS[1]).child("Name"))
-                        .child(TableHead::new().child("Type")),
+                        .child(TableHead::new().min_w(COL_WIDTHS[2]).w(COL_WIDTHS[2]).child("Type"))
+                        .child(TableHead::new().min_w(COL_WIDTHS[3]).w(COL_WIDTHS[3]).child("Length"))
+                        .child(TableHead::new().min_w(COL_WIDTHS[4]).w(COL_WIDTHS[4]).child("Presision"))
+                        .child(TableHead::new().min_w(COL_WIDTHS[5]).w(COL_WIDTHS[5]).child("Scale"))
+                        .child(TableHead::new().min_w(COL_WIDTHS[6]).w(COL_WIDTHS[6]).child("Not Null"))
+
                 ),
             )
             .child(TableBody::new().children(self.column_rows.iter().map(|c| TableChild::new(c.clone()))))
