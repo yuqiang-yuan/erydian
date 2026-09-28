@@ -11,14 +11,13 @@ use gpui_kit::component::*;
 use gpui_kit::prelude::FluentBuilder;
 use gpui_kit::*;
 
-use crate::actions::{
-    AboutAction, FileOpenedAction, NewRelationshipAction, NewSchemaAction,
-    NewTableAction, OpenFileAction, QuitAction, SaveFileAction, SchemaCreatedAction,
-};
-use crate::dialect::DialectKind;
-use crate::model::{SchemaDocument, Table};
+use crate::actions::{AboutAction, FileOpenedAction, NewRelationshipAction, NewSchemaAction, NewTableAction, OpenFileAction, QuitAction, SaveFileAction, SchemaCreatedAction};
+use crate::editor_view::EditorView;
+use crate::model::{DbKind, SchemaDocument, Table};
+use crate::new_schema_view::NewSchemaView;
 use crate::settings::{AppSettings, RecentFiles};
-use crate::view::{EditorView, NewSchemaView, WelcomeView};
+use crate::welcome_view::WelcomeView;
+
 
 #[derive(Debug, PartialEq, Eq)]
 enum Scene {
@@ -82,7 +81,7 @@ impl MainView {
         }));
 
         let temp_schema =
-            cx.new(|_| SchemaDocument::new(DialectKind::MySql, "temp", BTreeMap::new()));
+            cx.new(|_| SchemaDocument::new(DbKind::MySql, "temp"));
 
         let focus_handle_clone = focus_handle.clone();
         window.defer(cx, move |window, cx| {
@@ -97,7 +96,7 @@ impl MainView {
             schema: Some(temp_schema.clone()),
             scene: Scene::Welcome,
             welcome_view: cx.new(|cx| WelcomeView::new(window, cx)),
-            new_schema_view: cx.new(|cx| NewSchemaView::new(DialectKind::MySql, window, cx)),
+            new_schema_view: cx.new(|cx| NewSchemaView::new(DbKind::MySql, window, cx)),
             editor_view: None,
             _subscriptions: subscriptions,
             show_fps: false,
@@ -151,9 +150,6 @@ impl MainView {
             println!("add new table to schema document");
             doc.update(cx, |this, cx| {
                 let mut table = Table::new(format!("table_{}", this.tables().len() + 1));
-                if let Some(pk_col) = this.dialect.default_pk_column() {
-                    table.add_column(pk_col);
-                }
 
                 this.add_table(table);
                 cx.notify();
@@ -326,15 +322,6 @@ fn build_menus() -> Vec<Menu> {
                 MenuItem::action("Save", SaveFileAction),
                 MenuItem::separator(),
                 MenuItem::action("Quit", QuitAction),
-            ],
-            disabled: false,
-        },
-        Menu {
-            name: "Edit".into(),
-            items: vec![
-                MenuItem::separator(),
-                MenuItem::action("New Table", NewTableAction),
-                MenuItem::action("New Relationship", NewRelationshipAction),
             ],
             disabled: false,
         },

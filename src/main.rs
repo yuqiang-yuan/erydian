@@ -1,9 +1,21 @@
-use erydian::{assets::AppAssets, globals::APP_ID, settings::AppSettings, view::MainView};
+mod main_view;
+mod welcome_view;
+mod diagram_view;
+mod new_schema_view;
+mod editor_view;
+mod model;
+mod settings;
+mod globals;
+mod actions;
+mod assets;
+
 #[cfg(target_os = "linux")]
 use gpui_kit::WindowDecorations;
 use gpui_kit::{
     AppContext, WindowBounds, WindowKind, WindowOptions, component::{Root, Theme, ThemeMode, ThemeRegistry, TitleBar}, px, size,
 };
+
+use crate::{assets::AppAssets, globals::APP_ID, main_view::MainView, settings::AppSettings};
 
 fn main() {
     let app = gpui_kit::application().with_assets(AppAssets);

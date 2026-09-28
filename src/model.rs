@@ -1,38 +1,28 @@
-use std::{collections::{BTreeMap, HashMap}, fmt::Display};
+use std::{collections::HashMap, fmt::Display};
 
-use gpui_kit::SharedString;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::dialect::DialectKind;
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum AttrKind {
-    Text { default: Option<String>, multiple_line: bool },
-    Select { options: Vec<SharedString> },
-    Bool,
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum DbKind {
+    #[default]
+    MySql,
+    PostgreSql,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum AttrValue {
-    Text(Option<String>),
-    Bool(bool),
-}
-
-#[derive(Debug, Clone)]
-pub struct AttrSpec {
-    pub key: &'static str,
-    pub label: &'static str,
-    pub kind: AttrKind,
-    pub required: bool,
+impl Display for DbKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::MySql => write!(f, "MySQL"),
+            Self::PostgreSql => write!(f, "PostgreSQL"),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct SchemaDocument {
-    pub dialect: DialectKind,
+    pub kind: DbKind,
     pub name: String,
-    pub schema_attrs: BTreeMap<String, AttrValue>,
     tables: Vec<Table>,
 
     #[serde(skip)]
@@ -40,11 +30,10 @@ pub struct SchemaDocument {
 }
 
 impl SchemaDocument {
-    pub fn new(dialect: DialectKind, name: impl Into<String>, schema_attrs: BTreeMap<String, AttrValue>) -> Self {
+    pub fn new(kind: DbKind, name: impl Into<String>,) -> Self {
         Self {
-            dialect,
+            kind,
             name: name.into(),
-            schema_attrs,
             tables: vec![],
             tables_index: HashMap::new(),
         }
@@ -172,7 +161,6 @@ impl TableGraph {}
 pub struct Table {
     pub id: String,
     pub name: String,
-    pub attrs: BTreeMap<String, AttrValue>,
     pub graph: Option<TableGraph>,
 
     columns: Vec<Column>,
@@ -186,7 +174,6 @@ impl Table {
         Self {
             id: Uuid::new_v4().to_string(),
             name: name.into(),
-            attrs: BTreeMap::new(),
             columns: vec![],
             primary_keys: vec![],
             indexes: vec![],
@@ -293,7 +280,6 @@ pub struct Column {
     pub default_value: Option<String>,
     pub auto_increment: bool,
     pub comment: Option<String>,
-    pub attrs: BTreeMap<String, AttrValue>,
 }
 
 impl Column {
@@ -306,7 +292,6 @@ impl Column {
             default_value: None,
             auto_increment: false,
             comment: None,
-            attrs: BTreeMap::new(),
         }
     }
 }

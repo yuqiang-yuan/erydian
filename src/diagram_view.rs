@@ -5,7 +5,7 @@ use gpui_kit::{
     component::ActiveTheme, div, hsla, point, px, size,
 };
 
-use crate::model::{TableGraph, SchemaDocument};
+use crate::model::{SchemaDocument, TableGraph};
 
 /// What (if anything) a left-button drag is currently operating on.
 #[derive(Clone, PartialEq)]

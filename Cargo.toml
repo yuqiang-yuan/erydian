@@ -3,10 +3,6 @@ name = "erydian"
 version = "0.1.0"
 edition = "2024"
 
-[lib]
-name = "erydian"
-path = "src/lib.rs"
-
 [dependencies]
 anyhow = "1.0.104"
 dirs = "7.0.0"
